@@ -49,8 +49,7 @@ class CAenvironment():
         self.Nx = parameters['nx']
         self.Nj = parameters['nj']
 
-        self.x = parameters['x']  # np.ix_(np.arange(5, 150))
-        self.y = parameters['y']  # 5
+
 
         self.Q_th = np.zeros((self.Ny, self.Nx))  # Turbidity current thickness
         self.Q_v = np.zeros((self.Ny, self.Nx))  # Turbidity current speed (scalar)
@@ -61,11 +60,14 @@ class CAenvironment():
         self.Q_o = np.zeros((self.Ny, self.Nx, 6))  # Density current outflow
 
         # Source area
-        self.Q_th[self.y, self.x] = parameters['q_th[y,x]']  # 1.5
-        self.Q_v[self.y, self.x] = parameters['q_v[y,x]']  # 0.2
-        self.Q_cj[self.y, self.x, 0] = parameters['q_cj[y,x,0]']  # 0.003
-        self.Q_cbj[self.y, self.x, 0] = parameters['q_cbj[y,x,0]']  # 1
-        self.Q_d[self.y, self.x] = parameters['q_d[y,x]']  # 1
+        if (parameters['x'] is not None) and (parameters['y'] is not None):
+            self.x = parameters['x']  # np.ix_(np.arange(5, 150))
+            self.y = parameters['y']  # 5
+            self.Q_th[self.y, self.x] = parameters['q_th[y,x]']  # 1.5
+            self.Q_v[self.y, self.x] = parameters['q_v[y,x]']  # 0.2
+            self.Q_cj[self.y, self.x, 0] = parameters['q_cj[y,x,0]']  # 0.003
+            self.Q_cbj[self.y, self.x, 0] = parameters['q_cbj[y,x,0]']  # 1
+            self.Q_d[self.y, self.x] = parameters['q_d[y,x]']  # 1
 
         # Initial sand cover
         self.Q_cbj[1:-1, 1:-1, 0] = parameters['q_cbj[interior, 0]']  # 1
@@ -205,14 +207,20 @@ class CAenvironment():
         # grid.Q_v[y, x] += 0.2
         # grid.Q_cj[y, x, 0] += 0.003
         # grid.Q_th[y, x] += 1.5
-        self.grid.Q_v[self.y, self.x] = (self.grid.Q_v[self.y, self.x] * self.grid.Q_th[self.y,self.x] + q_v0 * q_th0*self.grid.dt) / (q_th0*self.grid.dt + self.grid.Q_th[self.y, self.x])
-        self.grid.Q_cj[self.y, self.x, 0] = (self.grid.Q_cj[self.y, self.x, 0] * self.grid.Q_th[self.y, self.x] + q_cj0 * q_th0*self.grid.dt) / (1.5*self.grid.dt + self.grid.Q_th[self.y, self.x])
-        self.grid.Q_th[self.y, self.x] += q_th0*self.grid.dt
+        if (self.parameters['x'] is not None) and (self.parameters['y'] is not None):
+            self.grid.Q_v[self.y, self.x] = (self.grid.Q_v[self.y, self.x] * self.grid.Q_th[self.y,self.x] + q_v0 * q_th0*self.grid.dt) / (q_th0*self.grid.dt + self.grid.Q_th[self.y, self.x])
+            self.grid.Q_cj[self.y, self.x, 0] = (self.grid.Q_cj[self.y, self.x, 0] * self.grid.Q_th[self.y, self.x] + q_cj0 * q_th0*self.grid.dt) / (1.5*self.grid.dt + self.grid.Q_th[self.y, self.x])
+            self.grid.Q_th[self.y, self.x] += q_th0*self.grid.dt
+        else:
+            pass
 
     def add_source_constant(self, q_th0, q_v0, q_cj0):
-        self.grid.Q_v[self.y, self.x] = 0.2
-        self.grid.Q_cj[self.y, self.x, 0] = 0.003
-        self.grid.Q_th[self.y, self.x] = 1.5
+        if (self.parameters['x'] is not None) and (self.parameters['y'] is not None):
+            self.grid.Q_v[self.y, self.x] = 0.2
+            self.grid.Q_cj[self.y, self.x, 0] = 0.003
+            self.grid.Q_th[self.y, self.x] = 1.5
+        else:
+            pass
         # if((self.grid.Q_th[self.y,self.x] < self.parameters['q_th[y,x]']).sum()):
         #     q_v0 = self.parameters['q_v[y,x]']
         #     q_cj0 = self.parameters['q_cj[y,x,0]']

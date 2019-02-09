@@ -121,7 +121,7 @@ def gather_grid():
     comm.Gather(send, TEMP, 0)
     # if rank == 0: print('TEMP = \n', TEMP.reshape(p_local_grid_y_dim*p_y_dims,p_local_grid_x_dim*p_x_dims))
 
-    if rank == 0:
+    if my_rank == 0:
 
         Tempindex = 0
         imageXcounter = 1
@@ -153,20 +153,8 @@ def gather_grid():
 if __name__ == "__main__":
     # Setup MPI
     comm = MPI.COMM_WORLD
-    rank = comm.Get_rank()
-    size = comm.Get_size()
-
-
-
-    # Load CA parameters from file
-    parameters = CAenv.import_parameters()
-    p_local_grid_parameters = parameters.copy()
-
-    if rank is 0:
-        result_grid = CAenv.CAenvironment(parameters)
-
-    # IMG_X = parameters['nx']
-    # IMG_Y = parameters['ny']
+    my_rank = comm.Get_rank()
+    num_procs = comm.Get_size()
 
     UP = 0
     DOWN = 1
@@ -175,14 +163,26 @@ if __name__ == "__main__":
 
     neighbor_processes = [0, 0, 0, 0]
 
-    local_petri_A = np.zeros(())
-    local_petri_B = np.zeros(())
-
-    ITERATIONS = 1
 
 
-    p_y_dims = int(np.sqrt(size))
-    p_x_dims = int(np.sqrt(size))
+    # Load CA parameters from file
+    parameters = CAenv.import_parameters()
+
+    if my_rank is 0:
+        result_grid = CAenv.CAenvironment(parameters)
+
+    IMG_X = parameters['nx']
+    IMG_Y = parameters['ny']
+
+
+
+
+
+    ITERATIONS = parameters['num_iterations']
+
+
+    p_y_dims = int(np.sqrt(num_procs))
+    p_x_dims = int(np.sqrt(num_procs))
 
     cartesian_communicator = comm.Create_cart((p_y_dims, p_x_dims), periods=(False, False))
 
@@ -191,18 +191,49 @@ if __name__ == "__main__":
     neighbor_processes[UP], neighbor_processes[DOWN] = cartesian_communicator.Shift(0, 1)
     neighbor_processes[LEFT], neighbor_processes[RIGHT] = cartesian_communicator.Shift(1, 1)
 
-    # print("Process = %s\n"
-    #       "my_mpi_row = %s\n"
-    #       "my_mpi_column = %s --->\n"
-    #       "neighbour_processes[UP] = %s\n"
-    #       "neighbour_processes[DOWN] = %s\n"
-    #       "neighbour_processes[LEFT] = %s\n"
-    #       "neighbour_processes[RIGHT] = %s\n" % (rank, my_mpi_row, my_mpi_col,
-    #                                            neighbor_processes[UP], neighbor_processes[DOWN],
-    #                                            neighbor_processes[LEFT], neighbor_processes[RIGHT]))
+
 
     p_local_grid_x_dim = int(IMG_X / p_x_dims)  # Må være delelig
     p_local_grid_y_dim = int(IMG_Y / p_y_dims)
+
+    p_local_grid_parameters = parameters.copy()
+    p_local_grid_parameters['x'] = None  # if None == no source
+    p_local_grid_parameters['y'] = None  # if None == no source
+    p_local_grid_parameters['nx'] = p_local_grid_x_dim  # p_local_grid_x_dim
+    p_local_grid_parameters['ny'] = p_local_grid_y_dim  # p_local_grid_y_dim
+
+
+    def global_coords_to_local_coords(y, x, my_mpi_row, my_mpi_col, p_local_grid_x_dim, p_local_grid_y_dim):
+        ''' Convert between global and local indices. Return (-1,-1) if outside local grid.'''
+        if (x >= (my_mpi_col * p_local_grid_x_dim)) & (x < ((my_mpi_col + 1) * p_local_grid_x_dim)):
+            local_x = x - (my_mpi_col * p_local_grid_x_dim)
+        else:
+            return tuple([-1, -1])
+        if (y >= (my_mpi_row * p_local_grid_y_dim)) & (y < ((my_mpi_row + 1) * p_local_grid_y_dim)):
+            local_y = y - (my_mpi_row * p_local_grid_y_dim)
+        else:
+            return tuple([-1, -1])
+        return tuple([local_y, local_x])
+
+    def set_local_grid_source():
+        p_local_source_tiles = []
+        x_coords_array = np.asarray(parameters['x'])
+        y_coords_array = np.asarray(parameters['y'])
+        no_x_coords = np.size(x_coords_array)
+        no_y_coords = np.size(y_coords_array)
+        print(x_coords_array, y_coords_array, no_x_coords, no_y_coords)
+
+        for i in range(no_x_coords):
+            for j in range(no_y_coords):
+                print(x_coords_array[i],y_coords_array[j]) #IndexError: too many indices for array
+
+
+
+    if my_rank is 0:
+        set_local_grid_source()
+
+    # p_local_hexgrid = CAenv.CAenvironment(p_local_grid_parameters, global_grid=False)
+
 
     local_petri_A = np.zeros((p_local_grid_x_dim + 2, p_local_grid_y_dim + 2))
     local_petri_B = np.zeros((p_local_grid_x_dim + 2, p_local_grid_y_dim + 2))
@@ -232,7 +263,7 @@ if __name__ == "__main__":
 
     comm.barrier()
     IMAGE = gather_grid()
-    if rank == 0: print (IMAGE)
+    if my_rank == 0: print (IMAGE)
 
     # print("after \nprocess = ", comm.rank,"\n",
     #       local_grid_A)
