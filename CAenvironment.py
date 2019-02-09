@@ -18,12 +18,32 @@ Q_o = 0
 
 
 # theta_r = 80
+def import_parameters(filename = 'test.ini'):
+    from configparser import ConfigParser, ExtendedInterpolation
+    import numpy as np
+
+    parser = ConfigParser(interpolation=ExtendedInterpolation())
+    parser.read(filename)
+    sections = parser.sections()
+
+    items = parser.items(sections[0])
+
+    parameters = {}
+    for i in range(len(items)):
+        try:
+            parameters[items[i][0]] = eval(items[i][1])
+        except:
+            parameters[items[i][0]] = (items[i][1])
+
+    return parameters
+
+
 
 class CAenvironment():
 
-    def __init__(self, parameters):
+    def __init__(self, parameters, global_grid = True):
         #     plt.ioff()
-
+        self.global_grid = global_grid # If False this environment describes a local CA (part of a grid)
         self.parameters = parameters
         self.Ny = parameters['ny']
         self.Nx = parameters['nx']
@@ -70,8 +90,8 @@ class CAenvironment():
         self.grid.p_f = parameters['p_f']  # Height threshold friction angle
         self.grid.p_adh = parameters['p_adh']
 
-        if parameters['velocity'] is not 0:
-            self.grid.v_sj = parameters['velocity']
+        if parameters['sphere_settling_velocity'] != 'salles':
+            self.grid.v_sj = parameters['sphere_settling_velocity']
 
         self.time = []
         self.mass = []
@@ -86,7 +106,7 @@ class CAenvironment():
 
 
     def CAtimeStep(self):
-        self.grid.time_step()
+        self.grid.time_step(self.global_grid)
 
     def printSubstates(self, i):
         fig = plt.figure(figsize=(10, 6))

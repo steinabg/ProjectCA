@@ -10,7 +10,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 import sqlite3
 from configparser import ConfigParser, ExtendedInterpolation
 import sys
-import main4GUI as main
+import CAenvironment as main
 import numpy as np
 sys.path.append('..')
 
@@ -253,11 +253,15 @@ class Ui_MainWindow(object):
 
         parameters = {}
         for i in range(self.tableWidget.rowCount()):
-            parameters[self.tableWidget.item(i,0).text()] = eval(self.tableWidget.item(i,1).text())
+            try:
+                parameters[self.tableWidget.item(i,0).text()] = eval(self.tableWidget.item(i,1).text())
+            except:
+                parameters[self.tableWidget.item(i, 0).text()] = (self.tableWidget.item(i, 1).text())
 
 
         parameters['iterations'] = int(self.numiterationsEdit.text())
 
+        # This terrain value will overwrite the value in .ini file
         if self.rupertBtn.isChecked():
             parameters['terrain'] = 'rupert'
         elif self.ShallowBtn.isChecked():
@@ -267,7 +271,7 @@ class Ui_MainWindow(object):
 
         parameters['velocity'] = 0
         if self.velocityManBtn.isChecked():
-            parameters['velocity'] = eval(self.velocityManEdit.text())
+            parameters['sphere_settling_velocity'] = eval(self.velocityManEdit.text())
 
 
         self.progressBar_increment = round(1.0/parameters['iterations']*100)

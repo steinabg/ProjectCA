@@ -118,8 +118,9 @@ class Hexgrid():
         for i in range(6):
             self.indexMat[self.NEIGHBOR[i] + (i,)] = 1
 
-    def time_step(self):
-        self.dt = self.calc_dt()  # Works as long as all ICs are given
+    def time_step(self, global_grid = True):
+        if global_grid is True:
+            self.dt = self.calc_dt()  # Works as long as all ICs are given
 
         self.T_1()  # Water entrainment.
         self.sanityCheck()
