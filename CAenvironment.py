@@ -61,8 +61,9 @@ class CAenvironment():
 
         # Source area
         if (parameters['x'] is not None) and (parameters['y'] is not None):
-            self.x = parameters['x']  # np.ix_(np.arange(5, 150))
-            self.y = parameters['y']  # 5
+            # if global_grid is True:
+            self.y, self.x = np.meshgrid(parameters['y'],parameters['x'])
+
             self.Q_th[self.y, self.x] = parameters['q_th[y,x]']  # 1.5
             self.Q_v[self.y, self.x] = parameters['q_v[y,x]']  # 0.2
             self.Q_cj[self.y, self.x, 0] = parameters['q_cj[y,x,0]']  # 0.003

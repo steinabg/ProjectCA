@@ -137,8 +137,8 @@ def gather_grid():
                         imageYcounter = 0
                     else:
                         Tempindex = Tempindex - ((p_x_dims - 1) * p_local_grid_x_dim * p_local_grid_y_dim) + 1
-                    imageXcounter = 0;
-                    imageYcounter += 1;
+                    imageXcounter = 0
+                    imageYcounter += 1
                 else:
                     Tempindex += (p_local_grid_x_dim * p_local_grid_y_dim) - p_local_grid_x_dim + 1
             else:
@@ -149,6 +149,95 @@ def gather_grid():
 
         IMAGE = IMAGE.reshape(p_local_grid_y_dim * p_y_dims, p_local_grid_x_dim * p_x_dims)
     return IMAGE
+
+def global_coords_to_local_coords(y, x, my_mpi_row, my_mpi_col, p_local_grid_x_dim, p_local_grid_y_dim):
+    ''' Convert between global and local indices. Return (-1,-1) if outside local grid.'''
+    # This ensures no error even if y = np.ix_(np.arange(5,6)) = array([5]) or y = 5.
+    try:
+        x = int(x[0])
+    except:
+        pass
+    try:
+        y = int(y[0])
+    except:
+        pass
+
+    if (x >= (my_mpi_col * p_local_grid_x_dim)) & (x < ((my_mpi_col + 1) * p_local_grid_x_dim)):
+        local_x = x - (my_mpi_col * p_local_grid_x_dim)
+    else:
+        return tuple([-1, -1])
+    # print("{0}, {1}".format(type(y),type((my_mpi_row * p_local_grid_y_dim))))
+    if (y >= (my_mpi_row * p_local_grid_y_dim)) & (y < ((my_mpi_row + 1) * p_local_grid_y_dim)):
+        local_y = y - (my_mpi_row * p_local_grid_y_dim)
+    else:
+        return tuple([-1, -1])
+    return tuple([local_y, local_x])
+
+def set_local_grid_source_xy():
+    p_local_source_tiles = []
+    p_local_source_tile_x = []
+    p_local_source_tile_y = []
+    x_coords_array = parameters['x']
+    y_coords_array = parameters['y']
+    no_x_coords = np.size(x_coords_array)
+    no_y_coords = np.size(y_coords_array)
+
+
+    for i in range(no_x_coords):
+        for j in range(no_y_coords):
+            if (no_x_coords == 1):
+                if(no_y_coords == 1):
+                    # print("h1")
+                    # print(x_coords_array,y_coords_array)
+                    local_x, local_y = global_coords_to_local_coords(y_coords_array,x_coords_array,my_mpi_row,
+                                                                     my_mpi_col,p_local_grid_x_dim,
+                                                                     p_local_grid_y_dim)
+                    if(local_x >-1):
+                        p_local_source_tiles.append(tuple([local_y,local_x]))
+                        p_local_source_tile_x.append(local_x)
+                        p_local_source_tile_y.append(local_y)
+
+
+                else:
+                    # print("h2")
+                    # print(x_coords_array,y_coords_array[0][j-1])
+                    local_x, local_y = global_coords_to_local_coords(y_coords_array[0][j-1], x_coords_array,
+                                                                     my_mpi_row, my_mpi_col,
+                                                                     p_local_grid_x_dim, p_local_grid_y_dim)
+                    if(local_x >-1):
+                        p_local_source_tiles.append(tuple([local_y,local_x]))
+                        p_local_source_tile_x.append(local_x)
+                        p_local_source_tile_y.append(local_y)
+            else:
+                if(no_y_coords == 1):
+                    # print("h3")
+                    # print(x_coords_array[0][i-1],y_coords_array)
+                    local_x, local_y = global_coords_to_local_coords(y_coords_array, x_coords_array[0][i-1],
+                                                                     my_mpi_row, my_mpi_col,
+                                                                     p_local_grid_x_dim, p_local_grid_y_dim)
+                    if(local_x >-1):
+                        p_local_source_tiles.append(tuple([local_y,local_x]))
+                        p_local_source_tile_x.append(local_x)
+                        p_local_source_tile_y.append(local_y)
+                else:
+                    # print("h4")
+                    # print(x_coords_array[0][i-1],y_coords_array[0][j-1])
+                    local_x, local_y = global_coords_to_local_coords(y_coords_array[0][j-1], x_coords_array[0][i-1],
+                                                                     my_mpi_row, my_mpi_col,
+                                                                     p_local_grid_x_dim, p_local_grid_y_dim)
+                    if(local_x >-1):
+                        p_local_source_tiles.append(tuple([local_y,local_x]))
+                        p_local_source_tile_x.append(local_x)
+                        p_local_source_tile_y.append(local_y)
+
+    # print(p_local_source_tiles)
+    p_local_source_tiles = [x for x in p_local_source_tiles if x != tuple([-1, -1])]
+    if len(p_local_source_tiles) > 0:
+        p_local_grid_parameters['x'] = np.ix_(np.arange(np.min(p_local_source_tile_x),np.max(p_local_source_tile_x)+1))
+        p_local_grid_parameters['y'] = np.ix_(np.arange(np.min(p_local_source_tile_y),np.max(p_local_source_tile_y)+1))
+    # print(p_local_grid_parameters['x'])
+    # print(p_local_grid_parameters['y'])
+
 
 if __name__ == "__main__":
     # Setup MPI
@@ -199,40 +288,23 @@ if __name__ == "__main__":
     p_local_grid_parameters = parameters.copy()
     p_local_grid_parameters['x'] = None  # if None == no source
     p_local_grid_parameters['y'] = None  # if None == no source
-    p_local_grid_parameters['nx'] = p_local_grid_x_dim  # p_local_grid_x_dim
-    p_local_grid_parameters['ny'] = p_local_grid_y_dim  # p_local_grid_y_dim
-
-
-    def global_coords_to_local_coords(y, x, my_mpi_row, my_mpi_col, p_local_grid_x_dim, p_local_grid_y_dim):
-        ''' Convert between global and local indices. Return (-1,-1) if outside local grid.'''
-        if (x >= (my_mpi_col * p_local_grid_x_dim)) & (x < ((my_mpi_col + 1) * p_local_grid_x_dim)):
-            local_x = x - (my_mpi_col * p_local_grid_x_dim)
-        else:
-            return tuple([-1, -1])
-        if (y >= (my_mpi_row * p_local_grid_y_dim)) & (y < ((my_mpi_row + 1) * p_local_grid_y_dim)):
-            local_y = y - (my_mpi_row * p_local_grid_y_dim)
-        else:
-            return tuple([-1, -1])
-        return tuple([local_y, local_x])
-
-    def set_local_grid_source():
-        p_local_source_tiles = []
-        x_coords_array = np.asarray(parameters['x'])
-        y_coords_array = np.asarray(parameters['y'])
-        no_x_coords = np.size(x_coords_array)
-        no_y_coords = np.size(y_coords_array)
-        print(x_coords_array, y_coords_array, no_x_coords, no_y_coords)
-
-        for i in range(no_x_coords):
-            for j in range(no_y_coords):
-                print(x_coords_array[i],y_coords_array[j]) #IndexError: too many indices for array
+    p_local_grid_parameters['nx'] = p_local_grid_x_dim + 2  # make room for borders
+    p_local_grid_parameters['ny'] = p_local_grid_y_dim + 2  # make room for borders
 
 
 
-    if my_rank is 0:
-        set_local_grid_source()
 
-    # p_local_hexgrid = CAenv.CAenvironment(p_local_grid_parameters, global_grid=False)
+
+
+
+    # if my_rank is 0:
+    set_local_grid_source_xy()
+
+    # if my_rank is 0:
+    p_local_hexgrid = CAenv.CAenvironment(p_local_grid_parameters, global_grid=False)
+    print("rank= ", my_rank, " np.where(p_local_hexgrid.grid.Q_th>0): ", np.where(p_local_hexgrid.grid.Q_th>0))
+
+
 
 
     local_petri_A = np.zeros((p_local_grid_x_dim + 2, p_local_grid_y_dim + 2))
