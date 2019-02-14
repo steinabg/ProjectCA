@@ -113,6 +113,7 @@ def exchange_borders_matrix(local_petri_A):
 
 def iterateCA():
     pass
+    # p_local_hexgrid.grid.time_step(global_grid=False)
 
 
 def gather_grid(local_petri_A):
@@ -254,10 +255,8 @@ if __name__ == "__main__":
     DOWN = 1
     LEFT = 2
     RIGHT = 3
-    NORTH_EAST = 4
-    SOUTH_WEST = 5
 
-    neighbor_processes = [0, 0, 0, 0, 0, 0]
+    neighbor_processes = [0, 0, 0, 0]
 
 
 
@@ -286,7 +285,6 @@ if __name__ == "__main__":
 
     neighbor_processes[UP], neighbor_processes[DOWN] = cartesian_communicator.Shift(0, 1)
     neighbor_processes[LEFT], neighbor_processes[RIGHT] = cartesian_communicator.Shift(1, 1)
-    neighbor_processes[NORTH_EAST], neighbor_processes[SOUTH_WEST] = cartesian_communicator.Shift(direction=(1,1), disp=1)
 
 
 
@@ -310,7 +308,7 @@ if __name__ == "__main__":
 
     # if my_rank is 0:
     p_local_hexgrid = CAenv.CAenvironment(p_local_grid_parameters, global_grid=False)
-    print("rank= ", my_rank, " np.where(p_local_hexgrid.grid.Q_th>0): ", np.where(p_local_hexgrid.grid.Q_th>0))
+    # print("rank= ", my_rank, " np.where(p_local_hexgrid.grid.Q_v>0): ", np.where(p_local_hexgrid.grid.Q_v>0))
 
 
 
@@ -322,7 +320,10 @@ if __name__ == "__main__":
     local_grid_ev = np.zeros((p_local_grid_y_dim + 2), dtype=np.double, order='C')
     local_grid_wv = np.zeros((p_local_grid_y_dim + 2), dtype=np.double, order='C')
 
-    p_local_hexgrid.grid.Q_o[:,:,1] = my_rank
+    # p_local_hexgrid.grid.Q_o[1,1,1] = my_rank
+    # p_local_hexgrid.grid.Q_o[1,p_local_grid_x_dim,1] = my_rank
+    # p_local_hexgrid.grid.Q_o[p_local_grid_y_dim,1,1] = my_rank
+    # p_local_hexgrid.grid.Q_o[p_local_grid_y_dim,p_local_grid_x_dim,1] = my_rank
     # local_petri_A[:] = comm.Get_rank()
     # print("process = ", comm.rank,"\n",
     #       local_grid_A)
@@ -338,6 +339,8 @@ if __name__ == "__main__":
     border_col_t.Commit()
 
     for num_iterations in range(ITERATIONS):
+
+        # Exchange borders
         exchange_borders_matrix(p_local_hexgrid.grid.Q_th)
         exchange_borders_matrix(p_local_hexgrid.grid.Q_v)
         for j in range(parameters['nj']):
@@ -346,7 +349,21 @@ if __name__ == "__main__":
         exchange_borders_matrix(p_local_hexgrid.grid.Q_d)
         exchange_borders_matrix(p_local_hexgrid.grid.Q_a)
         exchange_borders_cube(p_local_hexgrid.grid.Q_o, 6)
-        iterateCA()
+
+        # Calculate time step and set common dt in all local grids
+        p_global_dt = np.empty((1),dtype=np.double, order='C')
+        p_local_dt = np.array(p_local_hexgrid.grid.calc_dt(global_grid=False),dtype=np.double, order='C')
+
+        comm.Allreduce(p_local_dt, p_global_dt, op=MPI.MIN)
+        p_global_dt = p_global_dt[0]
+        # print("my rank = {0} and dt = {1}. I received {2}".format(my_rank, p_local_dt, p_global_dt))
+        p_local_hexgrid.grid.dt = p_global_dt # Set dt
+
+
+        # Iterate CA
+        p_local_hexgrid.grid.time_step(global_grid=False)
+
+        # iterateCA()
 
     comm.barrier()
     IMAGE_Q_th = gather_grid(p_local_hexgrid.grid.Q_th)
@@ -354,5 +371,5 @@ if __name__ == "__main__":
     IMAGE_Q_o = gather_grid(test)
     if my_rank == 0: print (IMAGE_Q_o)
 
-    print("after \nprocess = ", my_rank,"\n",
-          p_local_hexgrid.grid.Q_o[:,:,1])
+    # print("after \nprocess = ", my_rank,"\n",
+    #       p_local_hexgrid.grid.Q_o[:,:,1])

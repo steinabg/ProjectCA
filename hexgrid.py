@@ -613,12 +613,15 @@ class Hexgrid():
         g_prime[g_prime == 0] = np.inf
         return (self.dx / 2) / np.sqrt(2 * r_j * g_prime)
 
-    def calc_dt(self):
+    def calc_dt(self, global_grid=True):
         temp = self.calc_MaxRelaxationTime()
         try:
             dt = np.amin(temp[np.isfinite(temp) & (~np.isnan(temp)) & (temp > 0)])
         except:
-            dt = 0.01
+            if global_grid is True:
+                dt = 0.01
+            else:
+                dt = 9999999 # Set a large number so we can use MPI.Reduce MIN.
         return dt
 
     def printCA(self):
