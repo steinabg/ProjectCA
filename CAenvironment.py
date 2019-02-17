@@ -55,15 +55,17 @@ class CAenvironment():
         self.Q_v = np.zeros((self.Ny, self.Nx))  # Turbidity current speed (scalar)
         self.Q_cj = np.zeros((self.Ny, self.Nx, self.Nj))  # jth current sediment volume concentration
         self.Q_cbj = np.zeros((self.Ny, self.Nx, self.Nj))  # jth bed sediment volume fraction
-        self.Q_d = np.ones((self.Ny, self.Nx)) * np.inf  # Thickness of soft sediment
-        self.Q_d[1:-1, 1:-1] = 0  # Part of the initialization
+        if global_grid == True:
+            self.Q_d = np.ones((self.Ny, self.Nx)) * np.inf  # Thickness of soft sediment
+            self.Q_d[1:-1, 1:-1] = 0  # Part of the initialization
+        else:
+            self.Q_d = np.zeros((self.Ny,self.Nx))
         self.Q_o = np.zeros((self.Ny, self.Nx, 6))  # Density current outflow
 
         # Source area
         if (parameters['x'] is not None) and (parameters['y'] is not None):
             # if global_grid is True:
             self.y, self.x = np.meshgrid(parameters['y'],parameters['x'])
-
             self.Q_th[self.y, self.x] = parameters['q_th[y,x]']  # 1.5
             self.Q_v[self.y, self.x] = parameters['q_v[y,x]']  # 0.2
             self.Q_cj[self.y, self.x, 0] = parameters['q_cj[y,x,0]']  # 0.003
@@ -110,6 +112,38 @@ class CAenvironment():
 
     def CAtimeStep(self):
         self.grid.time_step(self.global_grid)
+
+    def print_substates_mpi(self, i):
+        fig = plt.figure(figsize=(10, 6))
+        ax = [fig.add_subplot(2, 2, i, aspect='equal') for i in range(1, 5)]
+        ind = np.unravel_index(np.argmax(self.grid.Q_th, axis=None), self.grid.Q_th.shape)
+
+        points = ax[0].scatter(self.grid.X[:, :, 0].flatten(), self.grid.X[:, :, 1].flatten(), marker='h',
+                               c=self.grid.Q_cj[:, :, 0].flatten())
+
+        plt.colorbar(points, shrink=0.6, ax=ax[0])
+        ax[0].set_title('Q_cj[:,:,0]. n = ' + str(i + 1))
+
+        points = ax[1].scatter(self.grid.X[:, :, 0].flatten(), self.grid.X[:, :, 1].flatten(), marker='h',
+                               c=self.grid.Q_th.flatten())
+        ax[1].scatter(self.grid.X[ind[0],ind[1],0], self.grid.X[ind[0],ind[1],1], c='r')  # Targeting
+        plt.colorbar(points, shrink=0.6, ax=ax[1])
+        ax[1].set_title('Q_th')
+
+        points = ax[2].scatter(self.grid.X[1:-1, 1:-1, 0].flatten(), self.grid.X[1:-1, 1:-1, 1].flatten(), marker='h',
+                               c=self.grid.Q_cbj[1:-1, 1:-1, 0].flatten())
+        plt.colorbar(points, shrink=0.6, ax=ax[2])
+        ax[2].set_title('Q_cbj[1:-1,1:-1,0]')
+
+        points = ax[3].scatter(self.grid.X[1:-1, 1:-1, 0].flatten(), self.grid.X[1:-1, 1:-1, 1].flatten(), marker='h',
+                               c=self.grid.Q_d[1:-1, 1:-1].flatten())
+        plt.colorbar(points, shrink=0.6, ax=ax[3])
+        ax[3].set_title('Q_d[1:-1,1:-1]')
+        plt.tight_layout()
+        s1 = str(self.terrain) if self.terrain is None else self.terrain
+        plt.savefig('full_%03ix%03i_%s_%03i_thetar%0.0f.png' % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']),
+                    bbox_inches='tight', pad_inches=0, dpi=240)
+        plt.close('all')
 
     def printSubstates(self, i):
         fig = plt.figure(figsize=(10, 6))

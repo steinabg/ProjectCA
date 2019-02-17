@@ -2,6 +2,9 @@ from mpi4py import MPI
 import numpy as np
 import sys
 import CAenvironment as CAenv
+import scipy.io
+import mathfunk as ma
+import matplotlib.pyplot as plt
 
 def exchange_borders_cube(local_petri_A, z_dim):
 
@@ -115,6 +118,14 @@ def iterateCA():
     pass
     # p_local_hexgrid.grid.time_step(global_grid=False)
 
+def gather_cube(local_petri_A, z_dim):
+    ans = np.zeros((p_local_grid_y_dim * p_y_dims, p_local_grid_x_dim * p_x_dims, z_dim),
+                   dtype=np.double, order='C')
+    # temp = np.zeros((p_local_grid_y_dim * p_y_dims, p_local_grid_x_dim * p_x_dims),
+    #                 dtype=np.double, order='C')
+    for i in range(z_dim):
+        ans[:,:,i] = gather_grid(local_petri_A[:,:,i])
+    return ans
 
 def gather_grid(local_petri_A):
     send = np.zeros((p_local_grid_y_dim, p_local_grid_x_dim), dtype=np.double)
@@ -153,7 +164,7 @@ def gather_grid(local_petri_A):
 
             imageXcounter += 1
 
-        IMAGE = IMAGE.reshape(p_local_grid_y_dim * p_y_dims, p_local_grid_x_dim * p_x_dims)
+    IMAGE = IMAGE.reshape(p_local_grid_y_dim * p_y_dims, p_local_grid_x_dim * p_x_dims)
     return IMAGE
 
 def global_coords_to_local_coords(y, x, my_mpi_row, my_mpi_col, p_local_grid_x_dim, p_local_grid_y_dim):
@@ -265,6 +276,7 @@ if __name__ == "__main__":
 
     if my_rank is 0:
         result_grid = CAenv.CAenvironment(parameters)
+        # print("size = ", sys.getsizeof(result_grid))
 
     IMG_X = parameters['nx']
     IMG_Y = parameters['ny']
@@ -297,21 +309,49 @@ if __name__ == "__main__":
     p_local_grid_parameters['nx'] = p_local_grid_x_dim + 2  # make room for borders
     p_local_grid_parameters['ny'] = p_local_grid_y_dim + 2  # make room for borders
 
-
-
-
-
-
-
-    # if my_rank is 0:
     set_local_grid_source_xy()
 
-    # if my_rank is 0:
+    def generate_p_local_hex_bathymetry(terrain):
+        if terrain == 'rupert':
+            global_bathy, junk = ma.generate_rupert_inlet_bathymetry(parameters['theta_r'],
+                                                                     Ny=parameters['ny'],
+                                                                     Nx=parameters['nx'])
+            global_bathy = np.transpose(global_bathy)
+            local_bathy = global_bathy[(my_mpi_row*p_local_grid_y_dim):((my_mpi_row+1)*p_local_grid_y_dim),
+                                         my_mpi_col*p_local_grid_x_dim:((my_mpi_col+1)*p_local_grid_x_dim)]
+            return local_bathy
+    local_bathy = generate_p_local_hex_bathymetry(parameters['terrain'])
+
     p_local_hexgrid = CAenv.CAenvironment(p_local_grid_parameters, global_grid=False)
     # print("rank= ", my_rank, " np.where(p_local_hexgrid.grid.Q_v>0): ", np.where(p_local_hexgrid.grid.Q_v>0))
+    def set_p_local_hex_bathymetry(p_local_hexgrid, local_bathy):
+        temp = p_local_hexgrid.grid.Q_d[1:-1,1:-1] + local_bathy
+        p_local_hexgrid.grid.Q_a[1:-1,1:-1] = temp
 
+    set_p_local_hex_bathymetry(p_local_hexgrid, local_bathy)
+    # print("my rank = {0}, my_mpi_col = {1}, my_mpi_row = {2}".format(my_rank, my_mpi_col,my_mpi_row))
+    # if my_rank == 0: print("p_xdims = {0}, p_y_dims = {1}".format(p_x_dims,p_y_dims))
 
+    def set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims):
+        if my_mpi_col == 0:
+            p_local_hexgrid.grid.Q_d[:,0] = np.inf
+            p_local_hexgrid.grid.Q_a[:,0] = np.inf
+        if my_mpi_row == 0:
+            p_local_hexgrid.grid.Q_d[0,:] = np.inf
+            p_local_hexgrid.grid.Q_a[0,:] = np.inf
+        if my_mpi_row == (p_y_dims-1):
+            # print("mympirow == p_ydims. myrank = ", my_rank)
+            p_local_hexgrid.grid.Q_d[-1,:] = np.inf
+            p_local_hexgrid.grid.Q_a[-1,:] = np.inf
+        if my_mpi_col == (p_x_dims-1):
+            # print("mympicol == p_xdims. myrank = ", my_rank)
+            p_local_hexgrid.grid.Q_d[:,-1] = np.inf
+            p_local_hexgrid.grid.Q_a[:,-1] = np.inf
+    set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims)
+    p_local_hexgrid.grid.my_rank = my_rank
 
+    # print("my rank = {0}\n my local Q_d = \n{1}".format(my_rank,p_local_hexgrid.grid.Q_d))
+    # print("my rank = {0}\nmy local Q_d =\n{1}".format(my_rank, p_local_hexgrid.grid.Q_d))
 
     # local_petri_A = np.zeros((p_local_grid_x_dim + 2, p_local_grid_y_dim + 2))
 
@@ -337,39 +377,137 @@ if __name__ == "__main__":
                                             1,
                                             p_local_grid_x_dim + 2)
     border_col_t.Commit()
+    sample_rate = parameters['sample_rate']
+    i_sample_values = []
+
+    import os.path
+    save_path_txt = '/home/steinar/Dropbox/NTNU/ProjectCA/Data/mpi_combined_txt'
+    save_path_png = '/home/steinar/Dropbox/NTNU/ProjectCA/Data/mpi_combined_png'
+    if my_rank == 0:
+        np.savetxt(os.path.join(save_path_txt, 'X000.txt'), result_grid.grid.X[:, :, 0])
+        np.savetxt(os.path.join(save_path_txt, 'X001.txt'), result_grid.grid.X[:, :, 1])
 
     for num_iterations in range(ITERATIONS):
 
         # Exchange borders
         exchange_borders_matrix(p_local_hexgrid.grid.Q_th)
         exchange_borders_matrix(p_local_hexgrid.grid.Q_v)
-        for j in range(parameters['nj']):
-            exchange_borders_matrix(p_local_hexgrid.grid.Q_cj[:, :, j])
-            exchange_borders_matrix(p_local_hexgrid.grid.Q_cbj[:, :, j])
+        exchange_borders_cube(p_local_hexgrid.grid.Q_cbj, parameters['nj'])
+        exchange_borders_cube(p_local_hexgrid.grid.Q_cj, parameters['nj'])
         exchange_borders_matrix(p_local_hexgrid.grid.Q_d)
         exchange_borders_matrix(p_local_hexgrid.grid.Q_a)
         exchange_borders_cube(p_local_hexgrid.grid.Q_o, 6)
+        set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims)
+
 
         # Calculate time step and set common dt in all local grids
-        p_global_dt = np.empty((1),dtype=np.double, order='C')
-        p_local_dt = np.array(p_local_hexgrid.grid.calc_dt(global_grid=False),dtype=np.double, order='C')
-
+        p_global_dt = np.zeros((1),dtype=np.double, order='C')
+        p_local_dt = np.array(p_local_hexgrid.grid.calc_dt(global_grid=False),
+                              dtype=np.double, order='C')
+        comm.barrier()
         comm.Allreduce(p_local_dt, p_global_dt, op=MPI.MIN)
         p_global_dt = p_global_dt[0]
         # print("my rank = {0} and dt = {1}. I received {2}".format(my_rank, p_local_dt, p_global_dt))
         p_local_hexgrid.grid.dt = p_global_dt # Set dt
 
 
+
         # Iterate CA
         p_local_hexgrid.grid.time_step(global_grid=False)
 
-        # iterateCA()
+
+        # TODO: Print results for certain time steps
+        if ((num_iterations + 1) % sample_rate == 0) and num_iterations > 0:
+            i_sample_values.append(num_iterations)
+            # print("sample")
+            # Gather grids
+            IMAGE_Q_th = gather_grid(p_local_hexgrid.grid.Q_th)
+            IMAGE_Q_cbj = gather_cube(p_local_hexgrid.grid.Q_cbj, parameters['nj'])
+            IMAGE_Q_cj = gather_cube(p_local_hexgrid.grid.Q_cj, parameters['nj'])
+            IMAGE_Q_d = gather_grid(p_local_hexgrid.grid.Q_d)
+
+            if my_rank== 0:
+                np.savetxt(os.path.join(save_path_txt, 'Q_th_{0}.txt'.format(num_iterations + 1)), IMAGE_Q_th)
+                np.savetxt(os.path.join(save_path_txt, 'Q_cbj_{0}.txt'.format(num_iterations + 1)), IMAGE_Q_cbj[:, :, 0])
+                np.savetxt(os.path.join(save_path_txt, 'Q_cj_{0}.txt'.format(num_iterations + 1)), IMAGE_Q_cj[:, :, 0])
+                np.savetxt(os.path.join(save_path_txt, 'Q_d_{0}.txt'.format(num_iterations + 1)), IMAGE_Q_d)
+
+        #
+        #
+        #
+        #
+        #     CAenv.sampleValues()
+        #     CAenv.printSubstates(i)
+    # print("AFTER\nmy rank = {0}\nmy local Q_d =\n{1}".format(my_rank,p_local_hexgrid.grid.Q_d))
 
     comm.barrier()
-    IMAGE_Q_th = gather_grid(p_local_hexgrid.grid.Q_th)
-    test = p_local_hexgrid.grid.Q_o[:,:,1].copy()
-    IMAGE_Q_o = gather_grid(test)
-    if my_rank == 0: print (IMAGE_Q_o)
 
-    # print("after \nprocess = ", my_rank,"\n",
-    #       p_local_hexgrid.grid.Q_o[:,:,1])
+    # Gather the results
+    IMAGE_Q_th = gather_grid(p_local_hexgrid.grid.Q_th)
+    IMAGE_Q_v = gather_grid(p_local_hexgrid.grid.Q_v)
+    IMAGE_Q_cbj = gather_cube(p_local_hexgrid.grid.Q_cbj, parameters['nj'])
+    IMAGE_Q_cj = gather_cube(p_local_hexgrid.grid.Q_cj, parameters['nj'])
+    IMAGE_Q_d = gather_grid(p_local_hexgrid.grid.Q_d)
+    IMAGE_Q_a = gather_grid(p_local_hexgrid.grid.Q_a)
+    IMAGE_Q_o = gather_cube(p_local_hexgrid.grid.Q_o, 6)
+
+
+    # Print figures
+    def print_substate(Ny, Nx, i, Q_th, Q_cj, Q_cbj, Q_d, X0, X1, terrain):
+        fig = plt.figure(figsize=(10, 6))
+        ax = [fig.add_subplot(2, 2, i, aspect='equal') for i in range(1, 5)]
+        ind = np.unravel_index(np.argmax(Q_th, axis=None), Q_th.shape)
+
+        points = ax[0].scatter(X0.flatten(), X1.flatten(), marker='h',
+                               c=Q_cj[:, :].flatten())
+
+        plt.colorbar(points, shrink=0.6, ax=ax[0])
+        ax[0].set_title('Q_cj[:,:,0]. n = ' + str(i + 1))
+
+        points = ax[1].scatter(X0.flatten(), X1.flatten(), marker='h',
+                               c=Q_th.flatten())
+        # ax[1].scatter(X[ind[0],ind[1],0], X[ind[0],ind[1],1], c='r')  # Targeting
+        plt.colorbar(points, shrink=0.6, ax=ax[1])
+        ax[1].set_title('Q_th')
+
+        points = ax[2].scatter(X0[1:-1, 1:-1].flatten(), X1[1:-1, 1:-1].flatten(), marker='h',
+                               c=Q_cbj[1:-1, 1:-1].flatten())
+        plt.colorbar(points, shrink=0.6, ax=ax[2])
+        ax[2].set_title('Q_cbj[1:-1,1:-1,0]')
+
+        points = ax[3].scatter(X0[1:-1, 1:-1].flatten(), X1[1:-1, 1:-1].flatten(), marker='h',
+                               c=Q_d[1:-1, 1:-1].flatten())
+        plt.colorbar(points, shrink=0.6, ax=ax[3])
+        ax[3].set_title('Q_d[1:-1,1:-1]')
+        plt.tight_layout()
+        s1 = str(terrain) if terrain is None else terrain
+        plt.savefig(os.path.join(save_path_png,'full_%03ix%03i_%s_%03i_thetar%0.0f.png' % (Nx, Ny, s1, i + 1, parameters['theta_r'])),
+                    bbox_inches='tight', pad_inches=0, dpi=240)
+        plt.close('all')
+
+    def load_txt_files(num_iterations):
+        IMAGE_Q_th = np.loadtxt(os.path.join(save_path_txt, 'Q_th_{0}.txt'.format(num_iterations + 1)))
+        IMAGE_Q_cbj = np.loadtxt(os.path.join(save_path_txt, 'Q_cbj_{0}.txt'.format(num_iterations + 1)))
+        IMAGE_Q_cj = np.loadtxt(os.path.join(save_path_txt, 'Q_cj_{0}.txt'.format(num_iterations + 1)))
+        IMAGE_Q_d = np.loadtxt(os.path.join(save_path_txt, 'Q_d_{0}.txt'.format(num_iterations + 1)))
+        return IMAGE_Q_th, IMAGE_Q_cbj, IMAGE_Q_cj, IMAGE_Q_d
+
+    num_figs = ITERATIONS//sample_rate
+    figs_per_proc = num_figs//num_procs
+    X0 = np.loadtxt(os.path.join(save_path_txt, 'X000.txt'))
+    X1 = np.loadtxt(os.path.join(save_path_txt, 'X001.txt'))
+
+    for i in range(my_rank*figs_per_proc,(my_rank+1)*figs_per_proc):
+        IMAGE_Q_th, IMAGE_Q_cbj, IMAGE_Q_cj, IMAGE_Q_d = load_txt_files(i_sample_values[i])
+        print_substate(parameters['ny'],parameters['nx'],i_sample_values[i],
+                       IMAGE_Q_th, IMAGE_Q_cj, IMAGE_Q_cbj, IMAGE_Q_d,
+                       X0, X1, parameters['terrain'])
+
+
+
+
+
+    # if my_rank == 0: print(IMAGE_Q_o[:,:,0])
+
+
+
