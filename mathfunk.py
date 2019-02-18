@@ -3,33 +3,33 @@ import warnings
 
 def generate_rupert_inlet_bathymetry(repose_angle, Ny=200, Nx=200, channel_amplitude=None, channel_width=None, channeldepth=None):
     # Nx = Ny = 200
-    X = np.zeros((Ny, Nx))
+    X = np.zeros((Nx, Ny))
 
-    y_offset = np.round(Ny / 13.333)
+    y_offset = np.round(Nx / 13.333)
 
     if channel_amplitude is None:
-        channel_amplitude = np.round(Ny / 6.667)
+        channel_amplitude = np.round(Nx / 6.667)
 
-    indicesX = np.arange(np.round(Nx / 3), Nx + 1)
-    indicesY = int(np.round(Ny / 2) + y_offset) + np.round(
-        channel_amplitude * np.sin(np.linspace(np.pi, 5 * np.pi / 2, num=int(Nx - indicesX[0]))))
+    indicesX = np.arange(np.round(Ny / 3), Ny + 1)
+    indicesY = int(np.round(Nx / 2) + y_offset) + np.round(
+        channel_amplitude * np.sin(np.linspace(np.pi, 5 * np.pi / 2, num=int(Ny - indicesX[0]))))
 
     if channel_width is None:
-        channel_width = int(np.round(Ny / 6.667))
+        channel_width = int(np.round(Nx / 6.667))
     if channeldepth is None:
-        channeldepth = int(np.round(Ny / 66.666))
+        channeldepth = int(np.round(Nx / 66.666))
     cross_sectionY = channeldepth * np.sin(np.linspace(np.pi, 2 * np.pi, channel_width))
     for i in range(len(indicesY)):
         for j in range(channel_width):
             X[int(indicesY[i] - channel_width + j), int(indicesX[i])] = cross_sectionY[j]
 
     for j in range(channel_width):
-        X[int(np.round(Ny / 2) + y_offset - channel_width + j), np.arange(1, np.round(Nx / 3) + 1, dtype=np.int)] = \
+        X[int(np.round(Nx / 2) + y_offset - channel_width + j), np.arange(1, np.round(Ny / 3) + 1, dtype=np.int)] = \
         cross_sectionY[j]
 
-    cross_sectionX = np.tan(np.deg2rad(-5)) * np.arange(1, Nx + 1)
+    cross_sectionX = np.tan(np.deg2rad(-5)) * np.arange(1, Ny + 1)
 
-    for i in range(Nx):
+    for i in range(Ny):
         X[:, i] = X[:, i] + cross_sectionX[i]
 
     X += 30

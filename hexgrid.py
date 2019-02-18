@@ -17,7 +17,7 @@ import numba as nb
 class Hexgrid():
     '''Simulates a turbidity current using a CA. '''
 
-    def __init__(self, Nx, Ny, ICstates=None, reposeAngle=np.deg2rad(0), dx=1, terrain=None,
+    def __init__(self, Ny, Nx, ICstates=None, reposeAngle=np.deg2rad(0), dx=1, terrain=None,
                  global_grid = True):
         ################ Constants ######################
         self.g = 9.81  # Gravitational acceleration
@@ -70,7 +70,7 @@ class Hexgrid():
         self.CellArea = ma.calc_hexagon_area(dx)
         if global_grid == True:
             self.setBathymetry(terrain)
-        self.diff = np.zeros((self.Ny - 2, self.Ny - 2, 6))
+        self.diff = np.zeros((self.Ny - 2, self.Nx - 2, 6))
         self.seaBedDiff = np.zeros((self.Ny - 2, self.Nx - 2, 6))
         self.calc_bathymetryDiff()
 
@@ -491,7 +491,7 @@ class Hexgrid():
         interiorH = self.Q_d[1:self.Ny - 1, 1:self.Nx - 1]
 
         # angle = np.zeros((self.Ny - 2, self.Ny - 2, 6))
-        indices = np.zeros((self.Ny - 2, self.Ny - 2, 6))
+        indices = np.zeros((self.Ny - 2, self.Nx - 2, 6))
         NoOfTrans = np.zeros((self.Ny - 2, self.Nx - 2))
         frac = np.zeros((self.Ny - 2, self.Nx - 2, 6))
         deltaS = np.zeros((self.Ny - 2, self.Nx - 2, 6))

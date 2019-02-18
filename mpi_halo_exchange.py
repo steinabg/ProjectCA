@@ -387,7 +387,13 @@ if __name__ == "__main__":
         np.savetxt(os.path.join(save_path_txt, 'X000.txt'), result_grid.grid.X[:, :, 0])
         np.savetxt(os.path.join(save_path_txt, 'X001.txt'), result_grid.grid.X[:, :, 1])
 
+    q_th0 = parameters['q_th[y,x]']
+    q_cj0 = parameters['q_cj[y,x,0]']
+    q_v0 = parameters['q_v[y,x]']
+
     for num_iterations in range(ITERATIONS):
+        # Add source
+        p_local_hexgrid.addSource(q_th0,q_v0, q_cj0)
 
         # Exchange borders
         exchange_borders_matrix(p_local_hexgrid.grid.Q_th)
@@ -416,7 +422,7 @@ if __name__ == "__main__":
         p_local_hexgrid.grid.time_step(global_grid=False)
 
 
-        # TODO: Print results for certain time steps
+
         if ((num_iterations + 1) % sample_rate == 0) and num_iterations > 0:
             i_sample_values.append(num_iterations)
             # print("sample")
