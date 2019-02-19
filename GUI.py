@@ -17,7 +17,7 @@ sys.path.append('..')
 class Ui_MainWindow(object):
 
 
-    def loadData(self, select=1, fileName='test.ini'):
+    def loadData(self, select=1, fileName='gui_default_config.ini'):
         if select == 1:
             fileName, _ = QtWidgets.QFileDialog.getOpenFileName(None, "Import configuration file", "","(*.ini)")
 

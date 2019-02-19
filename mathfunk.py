@@ -2,6 +2,7 @@ import numpy as np
 import warnings
 
 def generate_rupert_inlet_bathymetry(repose_angle, Ny=200, Nx=200, channel_amplitude=None, channel_width=None, channeldepth=None):
+    # TODO Make bathymetry with varying slope. 12 deg at top according to article
     # Nx = Ny = 200
     X = np.zeros((Nx, Ny))
 
@@ -17,16 +18,21 @@ def generate_rupert_inlet_bathymetry(repose_angle, Ny=200, Nx=200, channel_ampli
     if channel_width is None:
         channel_width = int(np.round(Nx / 6.667))
     if channeldepth is None:
-        channeldepth = int(np.round(Nx / 66.666))
+        channeldepth = np.minimum(int(np.round(Nx / 66.666)),3)
     cross_sectionY = channeldepth * np.sin(np.linspace(np.pi, 2 * np.pi, channel_width))
+    # def x_func(arg):
+    #     return arg*arg
+    # cross_sectionY = channeldepth * x_func(np.linspace(-1, 1, channel_width))- channeldepth
     for i in range(len(indicesY)):
         for j in range(channel_width):
             X[int(indicesY[i] - channel_width + j), int(indicesX[i])] = cross_sectionY[j]
 
     for j in range(channel_width):
-        X[int(np.round(Nx / 2) + y_offset - channel_width + j), np.arange(1, np.round(Ny / 3) + 1, dtype=np.int)] = \
+        X[int(np.round(Nx / 2) + y_offset - channel_width + j), np.arange(0, np.round(Ny / 3) + 1, dtype=np.int)] = \
         cross_sectionY[j]
 
+    # cross_sectionX = np.zeros((Ny))
+    # cross_sectionX = np.exp(-np.linspace(0,2,Ny))
     cross_sectionX = np.tan(np.deg2rad(-5)) * np.arange(1, Ny + 1)
 
     for i in range(Ny):

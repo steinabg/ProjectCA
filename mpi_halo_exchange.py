@@ -188,7 +188,7 @@ def global_coords_to_local_coords(y, x, my_mpi_row, my_mpi_col, p_local_grid_x_d
         local_y = y - (my_mpi_row * p_local_grid_y_dim)
     else:
         return tuple([-1, -1])
-    return tuple([local_y, local_x])
+    return tuple([local_x, local_y])
 
 def set_local_grid_source_xy():
     p_local_source_tiles = []
@@ -252,9 +252,50 @@ def set_local_grid_source_xy():
     if len(p_local_source_tiles) > 0:
         p_local_grid_parameters['x'] = np.ix_(np.arange(np.min(p_local_source_tile_x),np.max(p_local_source_tile_x)+1))
         p_local_grid_parameters['y'] = np.ix_(np.arange(np.min(p_local_source_tile_y),np.max(p_local_source_tile_y)+1))
+        print("p_local_grid_parameters['x'] = {0}, p_local_grid_parameters['y'] = {1}".format(
+            p_local_grid_parameters['x'], p_local_grid_parameters['y']
+        ))
     # print(p_local_grid_parameters['x'])
     # print(p_local_grid_parameters['y'])
 
+def load_txt_files(num_iterations):
+    IMAGE_Q_th = np.loadtxt(os.path.join(save_path_txt, 'Q_th_{0}.txt'.format(num_iterations + 1)))
+    IMAGE_Q_cbj = np.loadtxt(os.path.join(save_path_txt, 'Q_cbj_{0}.txt'.format(num_iterations + 1)))
+    IMAGE_Q_cj = np.loadtxt(os.path.join(save_path_txt, 'Q_cj_{0}.txt'.format(num_iterations + 1)))
+    IMAGE_Q_d = np.loadtxt(os.path.join(save_path_txt, 'Q_d_{0}.txt'.format(num_iterations + 1)))
+    return IMAGE_Q_th, IMAGE_Q_cbj, IMAGE_Q_cj, IMAGE_Q_d
+
+def print_substate(Ny, Nx, i, Q_th, Q_cj, Q_cbj, Q_d, X0, X1, terrain):
+    fig = plt.figure(figsize=(10, 6))
+    ax = [fig.add_subplot(2, 2, i, aspect='equal') for i in range(1, 5)]
+    ind = np.unravel_index(np.argmax(Q_th, axis=None), Q_th.shape)
+
+    points = ax[0].scatter(X0.flatten(), X1.flatten(), marker='h',
+                           c=Q_cj[:, :].flatten())
+
+    plt.colorbar(points, shrink=0.6, ax=ax[0])
+    ax[0].set_title('Q_cj[:,:,0]. n = ' + str(i + 1))
+
+    points = ax[1].scatter(X0.flatten(), X1.flatten(), marker='h',
+                           c=Q_th.flatten())
+    # ax[1].scatter(X[ind[0],ind[1],0], X[ind[0],ind[1],1], c='r')  # Targeting
+    plt.colorbar(points, shrink=0.6, ax=ax[1])
+    ax[1].set_title('Q_th')
+
+    points = ax[2].scatter(X0[1:-1, 1:-1].flatten(), X1[1:-1, 1:-1].flatten(), marker='h',
+                           c=Q_cbj[1:-1, 1:-1].flatten())
+    plt.colorbar(points, shrink=0.6, ax=ax[2])
+    ax[2].set_title('Q_cbj[1:-1,1:-1,0]')
+
+    points = ax[3].scatter(X0[1:-1, 1:-1].flatten(), X1[1:-1, 1:-1].flatten(), marker='h',
+                           c=Q_d[1:-1, 1:-1].flatten())
+    plt.colorbar(points, shrink=0.6, ax=ax[3])
+    ax[3].set_title('Q_d[1:-1,1:-1]')
+    plt.tight_layout()
+    s1 = str(terrain) if terrain is None else terrain
+    plt.savefig(os.path.join(save_path_png,'full_%03ix%03i_%s_%03i_thetar%0.0f.png' % (Nx, Ny, s1, i + 1, parameters['theta_r'])),
+                bbox_inches='tight', pad_inches=0, dpi=240)
+    plt.close('all')
 
 if __name__ == "__main__":
     # Setup MPI
@@ -317,6 +358,7 @@ if __name__ == "__main__":
                                                                      Ny=parameters['ny'],
                                                                      Nx=parameters['nx'])
             global_bathy = np.transpose(global_bathy)
+            # global_bathy = np.ones((parameters['ny'],parameters['nx'])) # TODO: Remove after testing
             local_bathy = global_bathy[(my_mpi_row*p_local_grid_y_dim):((my_mpi_row+1)*p_local_grid_y_dim),
                                          my_mpi_col*p_local_grid_x_dim:((my_mpi_col+1)*p_local_grid_x_dim)]
             return local_bathy
@@ -381,8 +423,8 @@ if __name__ == "__main__":
     i_sample_values = []
 
     import os.path
-    save_path_txt = '/home/steinar/Dropbox/NTNU/ProjectCA/Data/mpi_combined_txt'
-    save_path_png = '/home/steinar/Dropbox/NTNU/ProjectCA/Data/mpi_combined_png'
+    save_path_txt = './Data/mpi_combined_txt'
+    save_path_png = './Data/mpi_combined_png'
     if my_rank == 0:
         np.savetxt(os.path.join(save_path_txt, 'X000.txt'), result_grid.grid.X[:, :, 0])
         np.savetxt(os.path.join(save_path_txt, 'X001.txt'), result_grid.grid.X[:, :, 1])
@@ -391,6 +433,28 @@ if __name__ == "__main__":
     q_cj0 = parameters['q_cj[y,x,0]']
     q_v0 = parameters['q_v[y,x]']
 
+    # Check how Q_a and Q_d looks
+    Image_Q_a = gather_grid(p_local_hexgrid.grid.Q_a)
+    Image_Q_d = gather_grid(p_local_hexgrid.grid.Q_d)
+    if my_rank == 0:
+        fig = plt.figure(figsize=(10, 6))
+        ax = [fig.add_subplot(1, 2, i, aspect='equal') for i in range(1, 3)]
+        # ind = np.unravel_index(np.argmax(Image_Q_a, axis=None), Image_Q_a.shape)
+
+        points = ax[0].scatter(result_grid.grid.X[:, :, 0].flatten(), result_grid.grid.X[:, :, 1].flatten(), marker='h',
+                               c=Image_Q_a[:, :].flatten())
+
+        plt.colorbar(points, shrink=0.6, ax=ax[0])
+        ax[0].set_title('Q_a[:,:]. ')
+        points = ax[1].scatter(result_grid.grid.X[:, :, 0].flatten(), result_grid.grid.X[:, :, 1].flatten(), marker='h',
+                               c=Image_Q_d[:, :].flatten())
+        plt.colorbar(points, shrink=0.6, ax=ax[1])
+
+        plt.savefig(os.path.join(save_path_png,'before.png'),bbox_inches='tight', pad_inches=0)
+    if my_rank== 0:
+        from timeit import default_timer as timer
+        start = timer()
+    # print("my_rank = {0}, parameters[x] = {1}, parameters[y] = {2}".format(my_rank,p_local_grid_parameters['x'],p_local_grid_parameters['y']))
     for num_iterations in range(ITERATIONS):
         # Add source
         p_local_hexgrid.addSource(q_th0,q_v0, q_cj0)
@@ -421,7 +485,28 @@ if __name__ == "__main__":
         # Iterate CA
         p_local_hexgrid.grid.time_step(global_grid=False)
 
+        # Debugging
+        if (num_iterations == 0):
+            # Check how Q_a and Q_d looks
+            Image_Q_a = gather_grid(p_local_hexgrid.grid.Q_a)
+            Image_Q_d = gather_grid(p_local_hexgrid.grid.Q_d)
+            if my_rank == 0:
+                fig = plt.figure(figsize=(10, 6))
+                ax = [fig.add_subplot(1, 2, i, aspect='equal') for i in range(1, 3)]
+                # ind = np.unravel_index(np.argmax(Image_Q_a, axis=None), Image_Q_a.shape)
 
+                points = ax[0].scatter(result_grid.grid.X[:, :, 0].flatten(), result_grid.grid.X[:, :, 1].flatten(),
+                                       marker='h',
+                                       c=Image_Q_a[:, :].flatten())
+
+                plt.colorbar(points, shrink=0.6, ax=ax[0])
+                ax[0].set_title('Q_a[:,:]. ')
+                points = ax[1].scatter(result_grid.grid.X[:, :, 0].flatten(), result_grid.grid.X[:, :, 1].flatten(),
+                                       marker='h',
+                                       c=Image_Q_d[:, :].flatten())
+                plt.colorbar(points, shrink=0.6, ax=ax[1])
+
+                plt.savefig(os.path.join(save_path_png,'after.png'), bbox_inches='tight', pad_inches=0)
 
         if ((num_iterations + 1) % sample_rate == 0) and num_iterations > 0:
             i_sample_values.append(num_iterations)
@@ -459,45 +544,6 @@ if __name__ == "__main__":
 
 
     # Print figures
-    def print_substate(Ny, Nx, i, Q_th, Q_cj, Q_cbj, Q_d, X0, X1, terrain):
-        fig = plt.figure(figsize=(10, 6))
-        ax = [fig.add_subplot(2, 2, i, aspect='equal') for i in range(1, 5)]
-        ind = np.unravel_index(np.argmax(Q_th, axis=None), Q_th.shape)
-
-        points = ax[0].scatter(X0.flatten(), X1.flatten(), marker='h',
-                               c=Q_cj[:, :].flatten())
-
-        plt.colorbar(points, shrink=0.6, ax=ax[0])
-        ax[0].set_title('Q_cj[:,:,0]. n = ' + str(i + 1))
-
-        points = ax[1].scatter(X0.flatten(), X1.flatten(), marker='h',
-                               c=Q_th.flatten())
-        # ax[1].scatter(X[ind[0],ind[1],0], X[ind[0],ind[1],1], c='r')  # Targeting
-        plt.colorbar(points, shrink=0.6, ax=ax[1])
-        ax[1].set_title('Q_th')
-
-        points = ax[2].scatter(X0[1:-1, 1:-1].flatten(), X1[1:-1, 1:-1].flatten(), marker='h',
-                               c=Q_cbj[1:-1, 1:-1].flatten())
-        plt.colorbar(points, shrink=0.6, ax=ax[2])
-        ax[2].set_title('Q_cbj[1:-1,1:-1,0]')
-
-        points = ax[3].scatter(X0[1:-1, 1:-1].flatten(), X1[1:-1, 1:-1].flatten(), marker='h',
-                               c=Q_d[1:-1, 1:-1].flatten())
-        plt.colorbar(points, shrink=0.6, ax=ax[3])
-        ax[3].set_title('Q_d[1:-1,1:-1]')
-        plt.tight_layout()
-        s1 = str(terrain) if terrain is None else terrain
-        plt.savefig(os.path.join(save_path_png,'full_%03ix%03i_%s_%03i_thetar%0.0f.png' % (Nx, Ny, s1, i + 1, parameters['theta_r'])),
-                    bbox_inches='tight', pad_inches=0, dpi=240)
-        plt.close('all')
-
-    def load_txt_files(num_iterations):
-        IMAGE_Q_th = np.loadtxt(os.path.join(save_path_txt, 'Q_th_{0}.txt'.format(num_iterations + 1)))
-        IMAGE_Q_cbj = np.loadtxt(os.path.join(save_path_txt, 'Q_cbj_{0}.txt'.format(num_iterations + 1)))
-        IMAGE_Q_cj = np.loadtxt(os.path.join(save_path_txt, 'Q_cj_{0}.txt'.format(num_iterations + 1)))
-        IMAGE_Q_d = np.loadtxt(os.path.join(save_path_txt, 'Q_d_{0}.txt'.format(num_iterations + 1)))
-        return IMAGE_Q_th, IMAGE_Q_cbj, IMAGE_Q_cj, IMAGE_Q_d
-
     num_figs = ITERATIONS//sample_rate
     figs_per_proc = num_figs//num_procs
     X0 = np.loadtxt(os.path.join(save_path_txt, 'X000.txt'))
@@ -510,7 +556,8 @@ if __name__ == "__main__":
                        X0, X1, parameters['terrain'])
 
 
-
+if my_rank == 0:
+    print("time = ", timer() - start)
 
 
     # if my_rank == 0: print(IMAGE_Q_o[:,:,0])

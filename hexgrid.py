@@ -59,7 +59,7 @@ class Hexgrid():
             self.Q_d = np.ones((self.Ny, self.Nx)) * np.inf  # Thickness of soft sediment
             self.Q_d[1:-1, 1:-1] = 0
         else:
-            self.Q_d = np.zeros(self.Ny,self.Nx)
+            self.Q_d = np.zeros((self.Ny,self.Nx))
         if global_grid == True:
             self.Q_a = self.Q_d.copy()  # Bathymetry legges til Q_a i self.setBathymetry(terrain)
         # print(self.Q_a)

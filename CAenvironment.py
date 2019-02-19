@@ -2,6 +2,7 @@ from hexgrid import *
 import matplotlib.pyplot as plt
 import GUI
 # import sys
+import os.path
 # sys.path.append('..')
 np.set_printoptions(suppress=True, precision=3)
 
@@ -80,7 +81,7 @@ class CAenvironment():
 
         self.ICstates = [self.Q_th, self.Q_v, self.Q_cj, self.Q_cbj, self.Q_d, self.Q_o]
 
-        self.grid = Hexgrid(self.Ny, self.Nx, ICstates=self.ICstates, reposeAngle=np.deg2rad(parameters['theta_r']), terrain=self.terrain)
+        self.grid = Hexgrid(self.Ny, self.Nx, ICstates=self.ICstates, reposeAngle=np.deg2rad(parameters['theta_r']), terrain=self.terrain, global_grid=global_grid)
 
         self.grid.g = parameters['g']  # Gravitational acceleration
         self.grid.f = parameters['f']  # Darcy-Weisbach coeff
@@ -104,6 +105,9 @@ class CAenvironment():
         self.density = []
         self.beddensity = []
         self.head_velocity = []
+
+
+        self.save_path = './Data/'
 
         # For plotting in center of channel
         # self.ch_bot_thickness =
@@ -141,7 +145,7 @@ class CAenvironment():
         ax[3].set_title('Q_d[1:-1,1:-1]')
         plt.tight_layout()
         s1 = str(self.terrain) if self.terrain is None else self.terrain
-        plt.savefig('full_%03ix%03i_%s_%03i_thetar%0.0f.png' % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']),
+        plt.savefig(os.path.join('./Data/','full_%03ix%03i_%s_%03i_thetar%0.0f.png' % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']) ),
                     bbox_inches='tight', pad_inches=0, dpi=240)
         plt.close('all')
 
@@ -184,7 +188,7 @@ class CAenvironment():
         ax[2].set_ylim([0, 2])
         ax[2].set_ylabel('sum(Q_{o}[y,x])')
         plt.tight_layout()
-        plt.savefig('ch_bot_%03i.png' % (i + 1), bbox_inches='tight', pad_inches=0, dpi=240)
+        plt.savefig('./Data/ch_bot_%03i.png' % (i + 1), bbox_inches='tight', pad_inches=0, dpi=240)
 
 
         plt.close('all')
