@@ -2,6 +2,7 @@ from hexgrid import *
 import matplotlib.pyplot as plt
 import GUI
 # import sys
+import os.path
 # sys.path.append('..')
 np.set_printoptions(suppress=True, precision=3)
 
@@ -18,34 +19,59 @@ Q_o = 0
 
 
 # theta_r = 80
+def import_parameters(filename = 'test.ini'):
+    from configparser import ConfigParser, ExtendedInterpolation
+    import numpy as np
+
+    parser = ConfigParser(interpolation=ExtendedInterpolation())
+    parser.read(filename)
+    sections = parser.sections()
+
+    items = parser.items(sections[0])
+
+    parameters = {}
+    for i in range(len(items)):
+        try:
+            parameters[items[i][0]] = eval(items[i][1])
+        except:
+            parameters[items[i][0]] = (items[i][1])
+
+    return parameters
+
+
 
 class CAenvironment():
 
-    def __init__(self, parameters):
+    def __init__(self, parameters, global_grid = True):
         #     plt.ioff()
-
+        self.global_grid = global_grid # If False this environment describes a local CA (part of a grid)
         self.parameters = parameters
         self.Ny = parameters['ny']
         self.Nx = parameters['nx']
         self.Nj = parameters['nj']
 
-        self.x = parameters['x']  # np.ix_(np.arange(5, 150))
-        self.y = parameters['y']  # 5
+
 
         self.Q_th = np.zeros((self.Ny, self.Nx))  # Turbidity current thickness
         self.Q_v = np.zeros((self.Ny, self.Nx))  # Turbidity current speed (scalar)
         self.Q_cj = np.zeros((self.Ny, self.Nx, self.Nj))  # jth current sediment volume concentration
         self.Q_cbj = np.zeros((self.Ny, self.Nx, self.Nj))  # jth bed sediment volume fraction
-        self.Q_d = np.ones((self.Ny, self.Nx)) * np.inf  # Thickness of soft sediment
-        self.Q_d[1:-1, 1:-1] = 0  # Part of the initialization
+        if global_grid == True:
+            self.Q_d = np.ones((self.Ny, self.Nx)) * np.inf  # Thickness of soft sediment
+            self.Q_d[1:-1, 1:-1] = 0  # Part of the initialization
+        else:
+            self.Q_d = np.zeros((self.Ny,self.Nx))
         self.Q_o = np.zeros((self.Ny, self.Nx, 6))  # Density current outflow
 
         # Source area
-        self.Q_th[self.y, self.x] = parameters['q_th[y,x]']  # 1.5
-        self.Q_v[self.y, self.x] = parameters['q_v[y,x]']  # 0.2
-        self.Q_cj[self.y, self.x, 0] = parameters['q_cj[y,x,0]']  # 0.003
-        self.Q_cbj[self.y, self.x, 0] = parameters['q_cbj[y,x,0]']  # 1
-        self.Q_d[self.y, self.x] = parameters['q_d[y,x]']  # 1
+        if (parameters['x'] is not None) and (parameters['y'] is not None):
+            # if global_grid is True:
+            self.y, self.x = np.meshgrid(parameters['y'],parameters['x'])
+            self.Q_th[self.y, self.x] = parameters['q_th[y,x]']  # 1.5
+            self.Q_v[self.y, self.x] = parameters['q_v[y,x]']  # 0.2
+            self.Q_cj[self.y, self.x, 0] = parameters['q_cj[y,x,0]']  # 0.003
+            self.Q_cbj[self.y, self.x, 0] = parameters['q_cbj[y,x,0]']  # 1
+            self.Q_d[self.y, self.x] = parameters['q_d[y,x]']  # 1
 
         # Initial sand cover
         self.Q_cbj[1:-1, 1:-1, 0] = parameters['q_cbj[interior, 0]']  # 1
@@ -55,7 +81,7 @@ class CAenvironment():
 
         self.ICstates = [self.Q_th, self.Q_v, self.Q_cj, self.Q_cbj, self.Q_d, self.Q_o]
 
-        self.grid = Hexgrid(self.Ny, self.Nx, ICstates=self.ICstates, reposeAngle=np.deg2rad(parameters['theta_r']), terrain=self.terrain)
+        self.grid = Hexgrid(self.Ny, self.Nx, ICstates=self.ICstates, reposeAngle=np.deg2rad(parameters['theta_r']), terrain=self.terrain, global_grid=global_grid)
 
         self.grid.g = parameters['g']  # Gravitational acceleration
         self.grid.f = parameters['f']  # Darcy-Weisbach coeff
@@ -70,8 +96,8 @@ class CAenvironment():
         self.grid.p_f = parameters['p_f']  # Height threshold friction angle
         self.grid.p_adh = parameters['p_adh']
 
-        if parameters['velocity'] is not 0:
-            self.grid.v_sj = parameters['velocity']
+        if parameters['sphere_settling_velocity'] != 'salles':
+            self.grid.v_sj = parameters['sphere_settling_velocity']
 
         self.time = []
         self.mass = []
@@ -80,13 +106,16 @@ class CAenvironment():
         self.beddensity = []
         self.head_velocity = []
 
+
+        self.save_path = './Data/'
+
         # For plotting in center of channel
         # self.ch_bot_thickness =
 
 
 
     def CAtimeStep(self):
-        self.grid.time_step()
+        self.grid.time_step(self.global_grid)
 
     def printSubstates(self, i):
         fig = plt.figure(figsize=(10, 6))
@@ -116,7 +145,7 @@ class CAenvironment():
         ax[3].set_title('Q_d[1:-1,1:-1]')
         plt.tight_layout()
         s1 = str(self.terrain) if self.terrain is None else self.terrain
-        plt.savefig('full_%03ix%03i_%s_%03i_thetar%0.0f.png' % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']),
+        plt.savefig(os.path.join('./Data/','full_%03ix%03i_%s_%03i_thetar%0.0f.png' % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']) ),
                     bbox_inches='tight', pad_inches=0, dpi=240)
         plt.close('all')
 
@@ -159,7 +188,7 @@ class CAenvironment():
         ax[2].set_ylim([0, 2])
         ax[2].set_ylabel('sum(Q_{o}[y,x])')
         plt.tight_layout()
-        plt.savefig('ch_bot_%03i.png' % (i + 1), bbox_inches='tight', pad_inches=0, dpi=240)
+        plt.savefig('./Data/ch_bot_%03i.png' % (i + 1), bbox_inches='tight', pad_inches=0, dpi=240)
 
 
         plt.close('all')
@@ -185,14 +214,20 @@ class CAenvironment():
         # grid.Q_v[y, x] += 0.2
         # grid.Q_cj[y, x, 0] += 0.003
         # grid.Q_th[y, x] += 1.5
-        self.grid.Q_v[self.y, self.x] = (self.grid.Q_v[self.y, self.x] * self.grid.Q_th[self.y,self.x] + q_v0 * q_th0*self.grid.dt) / (q_th0*self.grid.dt + self.grid.Q_th[self.y, self.x])
-        self.grid.Q_cj[self.y, self.x, 0] = (self.grid.Q_cj[self.y, self.x, 0] * self.grid.Q_th[self.y, self.x] + q_cj0 * q_th0*self.grid.dt) / (1.5*self.grid.dt + self.grid.Q_th[self.y, self.x])
-        self.grid.Q_th[self.y, self.x] += q_th0*self.grid.dt
+        if (self.parameters['x'] is not None) and (self.parameters['y'] is not None):
+            self.grid.Q_v[self.y, self.x] = (self.grid.Q_v[self.y, self.x] * self.grid.Q_th[self.y,self.x] + q_v0 * q_th0*self.grid.dt) / (q_th0*self.grid.dt + self.grid.Q_th[self.y, self.x])
+            self.grid.Q_cj[self.y, self.x, 0] = (self.grid.Q_cj[self.y, self.x, 0] * self.grid.Q_th[self.y, self.x] + q_cj0 * q_th0*self.grid.dt) / (1.5*self.grid.dt + self.grid.Q_th[self.y, self.x])
+            self.grid.Q_th[self.y, self.x] += q_th0*self.grid.dt
+        else:
+            pass
 
     def add_source_constant(self, q_th0, q_v0, q_cj0):
-        self.grid.Q_v[self.y, self.x] = 0.2
-        self.grid.Q_cj[self.y, self.x, 0] = 0.003
-        self.grid.Q_th[self.y, self.x] = 1.5
+        if (self.parameters['x'] is not None) and (self.parameters['y'] is not None):
+            self.grid.Q_v[self.y, self.x] = 0.2
+            self.grid.Q_cj[self.y, self.x, 0] = 0.003
+            self.grid.Q_th[self.y, self.x] = 1.5
+        else:
+            pass
         # if((self.grid.Q_th[self.y,self.x] < self.parameters['q_th[y,x]']).sum()):
         #     q_v0 = self.parameters['q_v[y,x]']
         #     q_cj0 = self.parameters['q_cj[y,x,0]']

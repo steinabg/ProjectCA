@@ -109,7 +109,7 @@ def calc_Z_mj(kappa, Ustar, v_sj, f):
     :type v_sj: numpy.ndarray(Nj)
 
     :type f: numpy.ndarray(Nj)
-    :param f: This function returns the value defined by eq.(40) TODO!
+    :param f: This function returns the value defined by eq.(40)
 
     :rtype: numpy.ndarray(Ny,Nx,Nj)
     :return: jth value of Z as specified by eq. (38)
@@ -120,7 +120,7 @@ def calc_Z_mj(kappa, Ustar, v_sj, f):
     res = kappa * (np.sqrt(Ustar ** 2)[:, :, np.newaxis]) * f/v_sj  # version used in Salles Thesis & Imran et al
     return res
 
-def calc_kappa(D_s):  # TODO! SJEKK!
+def calc_kappa(D_s):  # TODO May cause trouble for Nj > 1
     '''
     This function computes kappa equation (39)
 
@@ -155,16 +155,16 @@ def calc_Ustar(c_D, q_v):
 
 def calc_fofR(R_pj):
     '''
-    This function returns the value defined by eq.(40) TODO!
+    This function returns the value defined by eq.(40)
 
     :type: numpy.array(Nj)
     :param: Particle Reynolds number for particle type j.
 
     :rtype: numpy.ndarray(Nj)
-    :return: This function returns the value defined by eq.(40) TODO!
+    :return: This function returns the value defined by eq.(40)
     '''
     if (R_pj < 1):
-        print("Undefined function value for R_pj<1 !")
+        raise("Undefined function value for R_pj<1 !")
     return np.where(R_pj >= 3.5, R_pj ** (0.6), 0.586 * R_pj ** (1.23))
 
 
@@ -177,7 +177,7 @@ def calc_Rpj(rho_j, rho, D_sj, nu, g=9.81):
     :param rho_j: Density of sediment type no j. [kg/m^3]
 
     :type rho: double
-    :param rho: density in equation (40). Assumed to be ambient density. [kg/m^3]. TODO!
+    :param rho: density in equation (40). Assumed to be ambient density. [kg/m^3].
 
     :type nu: double
     :param nu: Kinematic viscosity [m^2/s]
@@ -197,7 +197,7 @@ def calc_nearBedConcentration_SusSed(D_sj, D_sg, q_cj):
     :type D_sj: numpy.ndarray(Nj)
     :param D_sj: jth sediment diameter
 
-    :type D_sg: numpy.ndarray(Ny,Nx) TODO! Skal den være det?
+    :type D_sg: numpy.ndarray(Ny,Nx)
     :param D_sg: Geometric mean size of suspended sediment mixture in cell
 
     :type q_cj: numpy.ndarray(Ny,Nx,Nj)
@@ -245,7 +245,6 @@ def calc_averageSedimentSize(q_cj: np.ndarray, D_sj: np.ndarray):
 
 def calc_depositionRate(v_sj, c_nbj):
     '''
-    TODO! Equation (36)
 
     :type v_sj: numpy.ndarray(Nj)
     :param v_sj: j'th sediment fall velocity. [unit = m/s]
@@ -267,7 +266,6 @@ def calc_dimless_sphere_settlingVel(v_sj, g_reduced, nu):
     settling velocity using scaling factor:\
     (g' * nu)^(-1/3).\
 
-    TODO! Equation (37), but its altered!
 
     :type v_sj: numpy.ndarray(Nj)
     :param v_sj: j'th sediment fall velocity
@@ -312,7 +310,6 @@ def calc_g_reduced(rho_j, rho_a, g=9.81):
     :return: List of reduced gravities for sediment type j.
     :rtype: numpy.ndarray(Nj)
 
-    TODO! Assumed rho = rho_ambient
     '''
 
     return g * (rho_j - rho_a) / rho_a

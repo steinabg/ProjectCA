@@ -17,7 +17,8 @@ import numba as nb
 class Hexgrid():
     '''Simulates a turbidity current using a CA. '''
 
-    def __init__(self, Nx, Ny, ICstates=None, reposeAngle=np.deg2rad(0), dx=1, terrain=None):
+    def __init__(self, Ny, Nx, ICstates=None, reposeAngle=np.deg2rad(0), dx=1, terrain=None,
+                 global_grid = True):
         ################ Constants ######################
         self.g = 9.81  # Gravitational acceleration
         self.f = 0.04  # Darcy-Weisbach coeff
@@ -49,21 +50,27 @@ class Hexgrid():
             self.X[j, :, 1] = -np.ones(Nx) * dx * np.sqrt(3) / 2 * j
 
         ################# Cell substate storage ####################
-        #         self.Q_a   = np.zeros((self.Ny,self.Nx)) # Cell altitude (bathymetry at t = 0)
+        self.Q_a   = np.zeros((self.Ny,self.Nx)) # Cell altitude (bathymetry at t = 0)
         self.Q_th = np.zeros((self.Ny, self.Nx))  # Turbidity current thickness
         self.Q_v = np.zeros((self.Ny, self.Nx))  # Turbidity current speed (scalar)
         self.Q_cj = np.zeros((self.Ny, self.Nx, self.Nj))  # jth current sediment volume concentration
         self.Q_cbj = np.zeros((self.Ny, self.Nx, self.Nj))  # jth bed sediment volume fraction
-        self.Q_d = np.ones((self.Ny, self.Nx)) * np.inf  # Thickness of soft sediment
-        self.Q_d[1:-1, 1:-1] = 0
-        self.Q_a = self.Q_d.copy()  # Bathymetry legges til Q_a i self.setBathymetry(terrain)
+        if global_grid == True:
+            self.Q_d = np.ones((self.Ny, self.Nx)) * np.inf  # Thickness of soft sediment
+            self.Q_d[1:-1, 1:-1] = 0
+        else:
+            self.Q_d = np.zeros((self.Ny,self.Nx))
+        if global_grid == True:
+            self.Q_a = self.Q_d.copy()  # Bathymetry legges til Q_a i self.setBathymetry(terrain)
+        # print(self.Q_a)
         self.Q_o = np.zeros((self.Ny, self.Nx, 6))  # Density current outflow
 
         ################### Set Initial conditions #####################
         if ICstates is not None: self.set_substate_ICs(ICstates)
         self.CellArea = ma.calc_hexagon_area(dx)
-        self.setBathymetry(terrain)
-        self.diff = np.zeros((self.Ny - 2, self.Ny - 2, 6))
+        if global_grid == True:
+            self.setBathymetry(terrain)
+        self.diff = np.zeros((self.Ny - 2, self.Nx - 2, 6))
         self.seaBedDiff = np.zeros((self.Ny - 2, self.Nx - 2, 6))
         self.calc_bathymetryDiff()
 
@@ -73,6 +80,7 @@ class Hexgrid():
 
         # FOR DEBUGGING
         self.i = 0
+        self.my_rank = 0
         self.unphysical_substate = {'Q_th': 0, 'Q_v': 0, 'Q_cj':0,'Q_cbj':0,'Q_d':0,'Q_o':0}
         self.Erosionrate = []
         self.Depositionrate = []
@@ -118,13 +126,14 @@ class Hexgrid():
         for i in range(6):
             self.indexMat[self.NEIGHBOR[i] + (i,)] = 1
 
-    def time_step(self):
-        self.dt = self.calc_dt()  # Works as long as all ICs are given
+    def time_step(self, global_grid = True):
+        if global_grid is True:
+            self.dt = self.calc_dt()  # Works as long as all ICs are given
 
         self.T_1()  # Water entrainment.
         self.sanityCheck()
-        self.T_2()  # Erosion and deposition TODO fix
-        self.sanityCheck()
+        # self.T_2()  # Erosion and deposition TODO: Fix cause of instability
+        # self.sanityCheck()
         self.I_1()  # Turbidity c. outflows
         self.sanityCheck()
         self.I_2()  # Update thickness and concentration
@@ -315,6 +324,7 @@ class Hexgrid():
         delta[:, :, 4] = central_cell_height - q_i[2:self.Ny, 0:self.Nx - 2]
         delta[:, :, 5] = central_cell_height - q_i[1:self.Ny - 1, 0:self.Nx - 2]
         delta[np.isinf(delta)] = 0  # q_i is inf at borders. delta = 0 => angle =0 => no transfer
+        # print("my rank = {0}\nmy delta[:,:,0]=\n{1}".format(self.my_rank,delta[:,:,0]))
 
         # debug_delta = np.zeros((6, self.Ny - 2, self.Nx - 2))
         # for i in range(6):
@@ -368,7 +378,7 @@ class Hexgrid():
                 indices[itemp, i] = 0
 
         # Step (iv)
-        Average[np.isinf(Average)] = 0  # TODO Testing!
+        Average[np.isinf(Average)] = 0
         nonNormalizedOutFlow = np.ones((Average.shape + (6,))) * Average[:, :, np.newaxis]
         for i in range(6):
             with np.errstate(invalid='ignore'):
@@ -389,9 +399,9 @@ class Hexgrid():
         self.Q_o[1:-1, 1:-1,:] = np.round(np.nan_to_num(factor[:,:,None] * nonNormalizedOutFlow), 15)
 
 
-        if ((np.sum(self.Q_o, axis=2) > self.Q_th).sum() > 0):
+        if ((np.sum(self.Q_o, axis=2) > self.Q_th)[1:-1,1:-1].sum() > 0):
             ii, jj = np.where(np.sum(self.Q_o,axis=2)>self.Q_th)
-            s = ''.join("\nsum(Q_o[%02i,%02i]) = %03f > Q_th = %03f\n" % (ii[x],jj[x],sum(self.Q_o[ii[x],jj[x]]),self.Q_th[ii[x],jj[x]]) for x in range(len(ii)))
+            s = ''.join("\nsum(Q_o[%i,%i]) = %.10f > Q_th = %.10f\n" % (ii[x],jj[x],sum(self.Q_o[ii[x],jj[x]]),self.Q_th[ii[x],jj[x]]) for x in range(len(ii)))
             s = s + ''.join("Relaxation = %03f, Normalization = %03f\n" %(relaxation[ii[x],jj[x]], normalization[ii[x],jj[x]]) for x in range(len(ii)))
             raise Exception("I_1 warning! More outflow Q_o than thickness Q_th!" + s)
 
@@ -457,7 +467,6 @@ class Hexgrid():
         # #         self.calc_Hdiff()
 
         U_k = np.zeros((self.Ny - 2, self.Nx - 2, 6))
-        # #         diff = self.diff.copy() # TODO! THIS IS WRONG
         # #         print("diff=\n",diff[:,:,0])
         # #         diff[np.isinf(diff)] = 0
         diff = np.zeros((self.Ny - 2, self.Nx - 2, 6))
@@ -482,7 +491,7 @@ class Hexgrid():
         interiorH = self.Q_d[1:self.Ny - 1, 1:self.Nx - 1]
 
         # angle = np.zeros((self.Ny - 2, self.Ny - 2, 6))
-        indices = np.zeros((self.Ny - 2, self.Ny - 2, 6))
+        indices = np.zeros((self.Ny - 2, self.Nx - 2, 6))
         NoOfTrans = np.zeros((self.Ny - 2, self.Nx - 2))
         frac = np.zeros((self.Ny - 2, self.Nx - 2, 6))
         deltaS = np.zeros((self.Ny - 2, self.Nx - 2, 6))
@@ -541,7 +550,7 @@ class Hexgrid():
         nq_cbj = np.nan_to_num(prefactor *
                                (oldQ_d[1:-1, 1:-1, np.newaxis] * self.Q_cbj[1:-1, 1:-1, :] + deltaSSum[:, :,
                                                                                              None]))  # TODO usikker på om denne blir rett!
-        nq_cbj = np.round(nq_cbj,15) # TODO testing to avoid q_cbj != 1 with Nj = 1
+        nq_cbj = np.round(nq_cbj,15)
         self.Q_cbj[1:-1, 1:-1] = nq_cbj
         self.Q_cbj[self.Q_cbj < 1e-15] = 0
         if (self.Q_d < -1e-7).sum() > 0:
@@ -554,21 +563,23 @@ class Hexgrid():
             y = np.linspace(0, 100, self.Ny)
             X = np.array(np.meshgrid(x, y))
             temp = np.zeros((self.Ny, self.Nx))
-            if terrain is 'river':
+            if terrain == 'river':
                 temp = -2 * X[1, :] + 5 * np.abs(X[0, :] - 50 + 10 * np.sin(X[1, :] / 10))
                 #                 temp = 2*self.X[:,:,1] + 5*np.abs(self.X[:,:,0] + 10*np.sin(self.X[:,:,1]/10))
                 self.Q_a += temp  # BRUK MED RIVER
-            elif terrain is 'river_shallow':
+            elif terrain == 'river_shallow':
                 temp = -1 * X[1, :] + 1 * np.abs(X[0, :] - 50 + 5 * np.sin(X[1, :] / 10))
                 #                 temp = 2*self.X[:,:,1] + 5*np.abs(self.X[:,:,0] + 10*np.sin(self.X[:,:,1]/10))
                 self.Q_a += temp  # BRUK MED RIVER
-            elif terrain is 'pit':
+            elif terrain == 'pit':
                 temp = np.sqrt((X[0, :] - 50) * (X[0, :] - 50) + (X[1, :] - 50) * (X[1, :] - 50))
                 self.Q_a += 10 * temp
-            elif terrain is 'rupert':
-                mat = scipy.io.loadmat('rupert_inlet_200x200.mat')
-                mat['X'] = np.transpose(mat['X'])
-                self.Q_a += mat['X']
+            elif terrain == 'rupert':
+                # mat = scipy.io.loadmat('rupert_inlet_200x200.mat')
+                # mat['X'] = np.transpose(mat['X'])
+                # self.Q_a += mat['X']
+                temp, junk = ma.generate_rupert_inlet_bathymetry(self.reposeAngle, self.Ny,self.Nx)
+                self.Q_a += np.transpose(temp)
 
     def calc_bathymetryDiff(self):
         with np.errstate(invalid='ignore'):
@@ -612,12 +623,15 @@ class Hexgrid():
         g_prime[g_prime == 0] = np.inf
         return (self.dx / 2) / np.sqrt(2 * r_j * g_prime)
 
-    def calc_dt(self):
+    def calc_dt(self, global_grid=True):
         temp = self.calc_MaxRelaxationTime()
         try:
             dt = np.amin(temp[np.isfinite(temp) & (~np.isnan(temp)) & (temp > 0)])
         except:
-            dt = 0.01
+            if global_grid is True:
+                dt = 0.01
+            else:
+                dt = 9999999 # Set a large number so we can use MPI.Reduce MIN.
         return dt
 
     def printCA(self):

@@ -10,14 +10,14 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 import sqlite3
 from configparser import ConfigParser, ExtendedInterpolation
 import sys
-import main4GUI as main
+import CAenvironment as main
 import numpy as np
 sys.path.append('..')
 
 class Ui_MainWindow(object):
 
 
-    def loadData(self, select=1, fileName='test.ini'):
+    def loadData(self, select=1, fileName='gui_default_config.ini'):
         if select == 1:
             fileName, _ = QtWidgets.QFileDialog.getOpenFileName(None, "Import configuration file", "","(*.ini)")
 
@@ -253,11 +253,15 @@ class Ui_MainWindow(object):
 
         parameters = {}
         for i in range(self.tableWidget.rowCount()):
-            parameters[self.tableWidget.item(i,0).text()] = eval(self.tableWidget.item(i,1).text())
+            try:
+                parameters[self.tableWidget.item(i,0).text()] = eval(self.tableWidget.item(i,1).text())
+            except:
+                parameters[self.tableWidget.item(i, 0).text()] = (self.tableWidget.item(i, 1).text())
 
 
         parameters['iterations'] = int(self.numiterationsEdit.text())
 
+        # This terrain value will overwrite the value in .ini file
         if self.rupertBtn.isChecked():
             parameters['terrain'] = 'rupert'
         elif self.ShallowBtn.isChecked():
@@ -267,7 +271,7 @@ class Ui_MainWindow(object):
 
         parameters['velocity'] = 0
         if self.velocityManBtn.isChecked():
-            parameters['velocity'] = eval(self.velocityManEdit.text())
+            parameters['sphere_settling_velocity'] = eval(self.velocityManEdit.text())
 
 
         self.progressBar_increment = round(1.0/parameters['iterations']*100)
@@ -279,6 +283,22 @@ class Ui_MainWindow(object):
         q_cj0 = parameters['q_cj[y,x,0]']
         q_v0 = parameters['q_v[y,x]']
 
+        # TODO Remove after debugging
+        # import matplotlib.pyplot as plt
+        # fig = plt.figure(figsize=(10, 6))
+        # ax = [fig.add_subplot(1, 2, i, aspect='equal') for i in range(1, 3)]
+        # # ind = np.unravel_index(np.argmax(Image_Q_a, axis=None), Image_Q_a.shape)
+        #
+        # points = ax[0].scatter(CAenv.grid.X[:, :, 0].flatten(), CAenv.grid.X[:, :, 1].flatten(), marker='h',
+        #                        c=CAenv.grid.Q_a[:, :].flatten())
+        #
+        # plt.colorbar(points, shrink=0.6, ax=ax[0])
+        # ax[0].set_title('Q_a[:,:]. ')
+        # points = ax[1].scatter(CAenv.grid.X[:, :, 0].flatten(), CAenv.grid.X[:, :, 1].flatten(), marker='h',
+        #                        c=CAenv.grid.Q_d[:, :].flatten())
+        # plt.colorbar(points, shrink=0.6, ax=ax[1])
+        #
+        # plt.savefig('./Data/before.png',bbox_inches='tight', pad_inches=0)
 
         from timeit import default_timer as timer
         start = timer()
@@ -290,6 +310,23 @@ class Ui_MainWindow(object):
             ind = np.unravel_index(np.argmax(CAenv.grid.Q_th, axis=None), CAenv.grid.Q_th.shape)
             CAenv.head_velocity.append(CAenv.grid.Q_v[ind])
             self.incrementProgressBar()
+
+            # if i == 0:
+                # TODO Remove after debugging
+                # fig = plt.figure(figsize=(10, 6))
+                # ax = [fig.add_subplot(1, 2, i, aspect='equal') for i in range(1, 3)]
+                # # ind = np.unravel_index(np.argmax(Image_Q_a, axis=None), Image_Q_a.shape)
+                #
+                # points = ax[0].scatter(CAenv.grid.X[:, :, 0].flatten(), CAenv.grid.X[:, :, 1].flatten(), marker='h',
+                #                        c=CAenv.grid.Q_a[:, :].flatten())
+                #
+                # plt.colorbar(points, shrink=0.6, ax=ax[0])
+                # ax[0].set_title('Q_a[:,:]. ')
+                # points = ax[1].scatter(CAenv.grid.X[:, :, 0].flatten(), CAenv.grid.X[:, :, 1].flatten(), marker='h',
+                #                        c=CAenv.grid.Q_d[:, :].flatten())
+                # plt.colorbar(points, shrink=0.6, ax=ax[1])
+                #
+                # plt.savefig('./Data/after.png', bbox_inches='tight', pad_inches=0)
 
             if ( (i+1) % int(self.numIterationSample_lineEdit.text()) == 0) and i > 0:
                 CAenv.sampleValues()
