@@ -188,7 +188,7 @@ def global_coords_to_local_coords(y, x, my_mpi_row, my_mpi_col, p_local_grid_x_d
         local_y = y - (my_mpi_row * p_local_grid_y_dim)
     else:
         return tuple([-1, -1])
-    return tuple([local_x, local_y])
+    return tuple([local_x + 1, local_y + 1]) # Add 1 because of the borders
 
 def set_local_grid_source_xy():
     p_local_source_tiles = []
@@ -297,6 +297,29 @@ def print_substate(Ny, Nx, i, Q_th, Q_cj, Q_cbj, Q_d, X0, X1, terrain):
                 bbox_inches='tight', pad_inches=0, dpi=240)
     plt.close('all')
 
+
+def gather_and_print_Qa_Qd(savename):
+    # Check how Q_a and Q_d looks
+    Image_Q_a = gather_grid(p_local_hexgrid.grid.Q_a)
+    Image_Q_d = gather_grid(p_local_hexgrid.grid.Q_d)
+    if my_rank == 0:
+        fig = plt.figure(figsize=(10, 6))
+        ax = [fig.add_subplot(1, 2, i, aspect='equal') for i in range(1, 3)]
+        # ind = np.unravel_index(np.argmax(Image_Q_a, axis=None), Image_Q_a.shape)
+
+        points = ax[0].scatter(result_grid.grid.X[:, :, 0].flatten(), result_grid.grid.X[:, :, 1].flatten(),
+                               marker='h',
+                               c=Image_Q_a[:, :].flatten())
+
+        plt.colorbar(points, shrink=0.6, ax=ax[0])
+        ax[0].set_title('Q_a[:,:]. ')
+        points = ax[1].scatter(result_grid.grid.X[:, :, 0].flatten(), result_grid.grid.X[:, :, 1].flatten(),
+                               marker='h',
+                               c=Image_Q_d[:, :].flatten())
+        plt.colorbar(points, shrink=0.6, ax=ax[1])
+
+        plt.savefig(os.path.join('./Data/mpi_combined_png/', savename), bbox_inches='tight', pad_inches=0)
+
 if __name__ == "__main__":
     # Setup MPI
     comm = MPI.COMM_WORLD
@@ -316,6 +339,11 @@ if __name__ == "__main__":
     parameters = CAenv.import_parameters()
 
     if my_rank is 0:
+        # import pandas as pd
+        #
+        # desired_width = 320
+        # pd.set_option('display.width', desired_width)
+        # np.set_printoptions(linewidth=desired_width)
         result_grid = CAenv.CAenvironment(parameters)
         # print("size = ", sys.getsizeof(result_grid))
 
@@ -329,7 +357,7 @@ if __name__ == "__main__":
     ITERATIONS = parameters['num_iterations']
 
 
-    p_y_dims = int(np.sqrt(num_procs))
+    p_y_dims = int(np.sqrt(num_procs)) # num_procs must be a square number
     p_x_dims = int(np.sqrt(num_procs))
 
     cartesian_communicator = comm.Create_cart((p_y_dims, p_x_dims), periods=(False, False))
@@ -341,7 +369,7 @@ if __name__ == "__main__":
 
 
 
-    p_local_grid_x_dim = int(IMG_X / p_x_dims)  # Må være delelig
+    p_local_grid_x_dim = int(IMG_X / p_x_dims)  # IMG_X must be divisible by p_x_dims
     p_local_grid_y_dim = int(IMG_Y / p_y_dims)
 
     p_local_grid_parameters = parameters.copy()
@@ -358,14 +386,13 @@ if __name__ == "__main__":
                                                                      Ny=parameters['ny'],
                                                                      Nx=parameters['nx'])
             global_bathy = np.transpose(global_bathy)
-            # global_bathy = np.ones((parameters['ny'],parameters['nx'])) # TODO: Remove after testing
             local_bathy = global_bathy[(my_mpi_row*p_local_grid_y_dim):((my_mpi_row+1)*p_local_grid_y_dim),
                                          my_mpi_col*p_local_grid_x_dim:((my_mpi_col+1)*p_local_grid_x_dim)]
             return local_bathy
     local_bathy = generate_p_local_hex_bathymetry(parameters['terrain'])
 
     p_local_hexgrid = CAenv.CAenvironment(p_local_grid_parameters, global_grid=False)
-    # print("rank= ", my_rank, " np.where(p_local_hexgrid.grid.Q_v>0): ", np.where(p_local_hexgrid.grid.Q_v>0))
+    # print("rank= ", my_rank, " np.where(p_local_hexgrid.grid.Q_th>0): ", np.where(p_local_hexgrid.grid.Q_th>0))
     def set_p_local_hex_bathymetry(p_local_hexgrid, local_bathy):
         temp = p_local_hexgrid.grid.Q_d[1:-1,1:-1] + local_bathy
         p_local_hexgrid.grid.Q_a[1:-1,1:-1] = temp
@@ -434,27 +461,13 @@ if __name__ == "__main__":
     q_v0 = parameters['q_v[y,x]']
 
     # Check how Q_a and Q_d looks
-    Image_Q_a = gather_grid(p_local_hexgrid.grid.Q_a)
-    Image_Q_d = gather_grid(p_local_hexgrid.grid.Q_d)
-    if my_rank == 0:
-        fig = plt.figure(figsize=(10, 6))
-        ax = [fig.add_subplot(1, 2, i, aspect='equal') for i in range(1, 3)]
-        # ind = np.unravel_index(np.argmax(Image_Q_a, axis=None), Image_Q_a.shape)
+    # gather_and_print_Qa_Qd('before.png')
 
-        points = ax[0].scatter(result_grid.grid.X[:, :, 0].flatten(), result_grid.grid.X[:, :, 1].flatten(), marker='h',
-                               c=Image_Q_a[:, :].flatten())
 
-        plt.colorbar(points, shrink=0.6, ax=ax[0])
-        ax[0].set_title('Q_a[:,:]. ')
-        points = ax[1].scatter(result_grid.grid.X[:, :, 0].flatten(), result_grid.grid.X[:, :, 1].flatten(), marker='h',
-                               c=Image_Q_d[:, :].flatten())
-        plt.colorbar(points, shrink=0.6, ax=ax[1])
 
-        plt.savefig(os.path.join(save_path_png,'before.png'),bbox_inches='tight', pad_inches=0)
     if my_rank== 0:
         from timeit import default_timer as timer
         start = timer()
-    # print("my_rank = {0}, parameters[x] = {1}, parameters[y] = {2}".format(my_rank,p_local_grid_parameters['x'],p_local_grid_parameters['y']))
     for num_iterations in range(ITERATIONS):
         # Add source
         p_local_hexgrid.addSource(q_th0,q_v0, q_cj0)
@@ -477,37 +490,71 @@ if __name__ == "__main__":
         comm.barrier()
         comm.Allreduce(p_local_dt, p_global_dt, op=MPI.MIN)
         p_global_dt = p_global_dt[0]
-        # print("my rank = {0} and dt = {1}. I received {2}".format(my_rank, p_local_dt, p_global_dt))
         p_local_hexgrid.grid.dt = p_global_dt # Set dt
 
-
-
         # Iterate CA
-        p_local_hexgrid.grid.time_step(global_grid=False)
+        # Can't use p_local_hexgrid.grid.time_step(global_grid=False).
+        # Must exchange borders between each iteraction/transform
+        p_local_hexgrid.grid.T_1()
+        p_local_hexgrid.grid.sanityCheck()
+        exchange_borders_cube(p_local_hexgrid.grid.Q_cj, parameters['nj'])
+        exchange_borders_matrix(p_local_hexgrid.grid.Q_th)
+        set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims)
+        # p_local_hexgrid.grid.T_2()
+        # p_local_hexgrid.grid.sanityCheck()
+        # exchange_borders_matrix(p_local_hexgrid.grid.Q_d)
+        # exchange_borders_matrix(p_local_hexgrid.grid.Q_a)
+        # exchange_borders_cube(p_local_hexgrid.grid.Q_cbj, parameters['nj'])
+        # exchange_borders_cube(p_local_hexgrid.grid.Q_cj, parameters['nj'])
+        # set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims)
+        p_local_hexgrid.grid.I_1()
+        p_local_hexgrid.grid.sanityCheck()
+        exchange_borders_cube(p_local_hexgrid.grid.Q_o, 6)
+        set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims)
+        p_local_hexgrid.grid.I_2()
+        p_local_hexgrid.grid.sanityCheck()
+        exchange_borders_matrix(p_local_hexgrid.grid.Q_th)
+        exchange_borders_cube(p_local_hexgrid.grid.Q_cj, parameters['nj'])
+        set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims)
+        p_local_hexgrid.grid.I_3()
+        p_local_hexgrid.grid.sanityCheck()
+        exchange_borders_matrix(p_local_hexgrid.grid.Q_v)
+        set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims)
+        p_local_hexgrid.grid.I_4()
+        p_local_hexgrid.grid.sanityCheck()
+        exchange_borders_matrix(p_local_hexgrid.grid.Q_d)
+        exchange_borders_matrix(p_local_hexgrid.grid.Q_a)
+        exchange_borders_cube(p_local_hexgrid.grid.Q_cbj, parameters['nj'])
+        set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims)
 
         # Debugging
-        if (num_iterations == 0):
-            # Check how Q_a and Q_d looks
-            Image_Q_a = gather_grid(p_local_hexgrid.grid.Q_a)
-            Image_Q_d = gather_grid(p_local_hexgrid.grid.Q_d)
-            if my_rank == 0:
-                fig = plt.figure(figsize=(10, 6))
-                ax = [fig.add_subplot(1, 2, i, aspect='equal') for i in range(1, 3)]
-                # ind = np.unravel_index(np.argmax(Image_Q_a, axis=None), Image_Q_a.shape)
+        # image_Q_th = gather_grid(p_local_hexgrid.grid.Q_th)
+        # if my_rank == 0:
+        #     # Check if the mpi and nonmpi grids are identical
+        #     result_grid.addSource(q_th0, q_v0, q_cj0)
+        #     result_grid.CAtimeStep()
+        #     print("image = \n", image_Q_th)
+        #     print("\nresult_grid = \n", result_grid.grid.Q_th)
+        #     print("image_dt = {0}, result_grid.dt = {1}. equal = {2}".format(p_global_dt,result_grid.grid.dt, p_global_dt == result_grid.grid.dt))
+        #     # result_grid.grid.Q_th[1,1] += 1 #induce intentional error
+        #
+        #     if np.any(image_Q_th.flatten() != result_grid.grid.Q_th.flatten()):
+        #         ii, jj = np.where(image_Q_th != result_grid.grid.Q_th)
+        #         s = "num_iterations = 0\n"
+        #         # s = s + ''.join("local_source_tiles = {0}, {1}\n. result_grid_source = {2},{3}.\n".format(
+        #         #     p_local_grid_parameters['x'], p_local_grid_parameters['y'], parameters['x'], parameters['y']
+        #         # ))
+        #         s = s + ''.join("image_q_th[{0},{1}] = {2} != result_grid.grid.Q_th[{3},{4}] = {5}\n".format(
+        #             ii[x], jj[x], image_Q_th[ii[x], jj[x]], ii[x], jj[x], result_grid.grid.Q_th[ii[x], jj[x]]) for x in
+        #                         range(len(ii)))
+        #         raise Exception("not equal: " + s)
+        #     print("all clear!")
 
-                points = ax[0].scatter(result_grid.grid.X[:, :, 0].flatten(), result_grid.grid.X[:, :, 1].flatten(),
-                                       marker='h',
-                                       c=Image_Q_a[:, :].flatten())
 
-                plt.colorbar(points, shrink=0.6, ax=ax[0])
-                ax[0].set_title('Q_a[:,:]. ')
-                points = ax[1].scatter(result_grid.grid.X[:, :, 0].flatten(), result_grid.grid.X[:, :, 1].flatten(),
-                                       marker='h',
-                                       c=Image_Q_d[:, :].flatten())
-                plt.colorbar(points, shrink=0.6, ax=ax[1])
+        # if (num_iterations == 0):
+        #     gather_and_print_Qa_Qd('after_func.png')
 
-                plt.savefig(os.path.join(save_path_png,'after.png'), bbox_inches='tight', pad_inches=0)
-
+        # Sample and print sub states to .txt
         if ((num_iterations + 1) % sample_rate == 0) and num_iterations > 0:
             i_sample_values.append(num_iterations)
             # print("sample")
@@ -523,13 +570,7 @@ if __name__ == "__main__":
                 np.savetxt(os.path.join(save_path_txt, 'Q_cj_{0}.txt'.format(num_iterations + 1)), IMAGE_Q_cj[:, :, 0])
                 np.savetxt(os.path.join(save_path_txt, 'Q_d_{0}.txt'.format(num_iterations + 1)), IMAGE_Q_d)
 
-        #
-        #
-        #
-        #
-        #     CAenv.sampleValues()
-        #     CAenv.printSubstates(i)
-    # print("AFTER\nmy rank = {0}\nmy local Q_d =\n{1}".format(my_rank,p_local_hexgrid.grid.Q_d))
+
 
     comm.barrier()
 
