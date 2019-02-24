@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import GUI
 # import sys
 import os.path
+from mpldatacursor import datacursor
 # sys.path.append('..')
 np.set_printoptions(suppress=True, precision=3)
 
@@ -192,6 +193,85 @@ class CAenvironment():
 
 
         plt.close('all')
+
+    def printSubstates_to_screen(self, i):
+        fig = plt.figure(figsize=(10, 6))
+        ax = [fig.add_subplot(2, 2, i, aspect='equal') for i in range(1, 5)]
+        ind = np.unravel_index(np.argmax(self.grid.Q_th, axis=None), self.grid.Q_th.shape)
+
+        points = ax[0].scatter(self.grid.X[:, :, 0].flatten(), self.grid.X[:, :, 1].flatten(), marker='h',
+                               c=self.grid.Q_cj[:, :, 0].flatten())
+
+        plt.colorbar(points, shrink=0.6, ax=ax[0])
+        ax[0].set_title('Q_cj[:,:,0]. n = ' + str(i + 1))
+
+        points = ax[1].scatter(self.grid.X[:, :, 0].flatten(), self.grid.X[:, :, 1].flatten(), marker='h',
+                               c=self.grid.Q_th.flatten())
+        ax[1].scatter(self.grid.X[ind[0],ind[1],0], self.grid.X[ind[0],ind[1],1], c='r')  # Targeting
+        plt.colorbar(points, shrink=0.6, ax=ax[1])
+        ax[1].set_title('Q_th')
+
+        points = ax[2].scatter(self.grid.X[1:-1, 1:-1, 0].flatten(), self.grid.X[1:-1, 1:-1, 1].flatten(), marker='h',
+                               c=self.grid.Q_cbj[1:-1, 1:-1, 0].flatten())
+        plt.colorbar(points, shrink=0.6, ax=ax[2])
+        ax[2].set_title('Q_cbj[1:-1,1:-1,0]')
+
+        points = ax[3].scatter(self.grid.X[1:-1, 1:-1, 0].flatten(), self.grid.X[1:-1, 1:-1, 1].flatten(), marker='h',
+                               c=self.grid.Q_d[1:-1, 1:-1].flatten())
+        datacursor(bbox=dict(alpha=1))
+        plt.colorbar(points, shrink=0.6, ax=ax[3])
+        ax[3].set_title('Q_d[1:-1,1:-1]')
+        plt.tight_layout()
+        plt.show()
+        # s1 = str(self.terrain) if self.terrain is None else self.terrain
+        # plt.savefig(os.path.join('./Data/','full_%03ix%03i_%s_%03i_thetar%0.0f.png' % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']) ),
+        #             bbox_inches='tight', pad_inches=0, dpi=240)
+        # plt.close('all')
+
+        # Plot the 1D substates along the bottom of the channel
+        # fig = plt.figure(figsize=(10, 6))
+        # ax = [fig.add_subplot(2, 2, i, aspect='auto') for i in range(1, 4)]
+        # ax[0].plot(np.arange(len(self.ch_bot_thickness)), self.ch_bot_thickness)
+        # ax[0].plot((5, 5), (0, 3), 'k-')
+        # ax[0].set_title('1D Q_th, time step = %03i' % (i+1))
+        # ax[0].set_ylim([0, 3])
+        # ax[0].set_ylabel('Q_{th}')
+        # for xx in range(0,3):
+        #     ax[xx].set_xlabel('y: Channel axis')
+        # # plt.savefig('ch_bot_thickness_%03i.png' %(i+1), bbox_inches='tight',pad_inches=0,dpi=240)
+        #
+        #
+        # # plt.figure(figsize=(10, 6))
+        # # plt.plot(np.arange(len(self.ch_bot_thickness)), self.ch_bot_thickness, label='Thickness')
+        # # plt.plot(np.arange(len(self.ch_bot_speed)), self.ch_bot_speed, 'c.', label='Speed')
+        # # plt.plot(np.arange(len(self.ch_bot_speed)), self.ch_bot_outflow, 'r-.', label='Outflow')
+        # # plt.legend()
+        # # plt.plot((5, 5), (0, 3), 'k-')
+        # # plt.title('1D Q_th, time step = %03i' % (i+1))
+        # # plt.ylim([0, 3])
+        # # plt.savefig('ch_bot_combi_%03i.png' %(i+1), bbox_inches='tight',pad_inches=0,dpi=240)
+        #
+        #
+        # # plt.figure(figsize=(10, 6))
+        # ax[1].plot(np.arange(len(self.ch_bot_speed)), self.ch_bot_speed)
+        # ax[1].plot((5, 5),(0, 1), 'k-')
+        # ax[1].set_title('1D speed, time step = %03i' % (i+1))
+        # ax[1].set_ylim([0, 1])
+        # ax[1].set_ylabel('Q_{v}')
+        # # plt.savefig('ch_bot_speed_%03i.png' %(i+1), bbox_inches='tight',pad_inches=0,dpi=240)
+        #
+        # # ax[2].figure(figsize=(10, 6))
+        # ax[2].plot(np.arange(len(self.ch_bot_speed)), self.ch_bot_outflow)
+        # ax[2].plot((5, 5), (0, 2), 'k-')
+        # ax[2].set_title('Sum 1D outflow, time step = %03i' % (i + 1))
+        # ax[2].set_ylim([0, 2])
+        # ax[2].set_ylabel('sum(Q_{o}[y,x])')
+        # plt.tight_layout()
+        # plt.show()
+        # # plt.savefig('./Data/ch_bot_%03i.png' % (i + 1), bbox_inches='tight', pad_inches=0, dpi=240)
+        #
+        #
+        # plt.close('all')
 
 
     def sampleValues(self):

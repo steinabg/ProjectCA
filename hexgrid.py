@@ -10,6 +10,7 @@ import T1functions as T1
 import T2functions as T2
 import scipy.io
 import numba as nb
+from mpldatacursor import datacursor
 
 
 
@@ -132,17 +133,22 @@ class Hexgrid():
 
         self.T_1()  # Water entrainment.
         self.sanityCheck()
-        # self.T_2()  # Erosion and deposition TODO: Fix cause of instability
-        # self.sanityCheck()
+        # self.printSubstates_to_screen('T_1')
+        self.T_2()  # Erosion and deposition TODO: Fix cause of instability
+        self.sanityCheck()
+        # self.printSubstates_to_screen('T_2')
         self.I_1()  # Turbidity c. outflows
         self.sanityCheck()
+        # self.printSubstates_to_screen('I_1')
         self.I_2()  # Update thickness and concentration
         self.sanityCheck()
+        # self.printSubstates_to_screen('I_2')
         self.I_3()  # Update of turbidity flow velocity
         self.sanityCheck()
+        # self.printSubstates_to_screen('I_3')
         self.I_4()  # Toppling rule
-
         self.sanityCheck()
+        # self.printSubstates_to_screen('I_4')
 
 
 
@@ -195,7 +201,35 @@ class Hexgrid():
         self.Q_d[self.Q_d < 1e-16] = 0
         self.Q_v[self.Q_v < 1e-16] = 0
 
+    def printSubstates_to_screen(self, text):
+        fig = plt.figure(figsize=(10, 6))
+        ax = [fig.add_subplot(2, 2, i, aspect='equal') for i in range(1, 5)]
+        ind = np.unravel_index(np.argmax(self.Q_th, axis=None), self.Q_th.shape)
 
+        points = ax[0].scatter(self.X[:, :, 0].flatten(), self.X[:, :, 1].flatten(), marker='h',
+                               c=self.Q_cj[:, :, 0].flatten())
+
+        plt.colorbar(points, shrink=0.6, ax=ax[0])
+        ax[0].set_title('Q_cj[:,:,0]. n = ' + text)
+
+        points = ax[1].scatter(self.X[:, :, 0].flatten(), self.X[:, :, 1].flatten(), marker='h',
+                               c=self.Q_th.flatten())
+        ax[1].scatter(self.X[ind[0],ind[1],0], self.X[ind[0],ind[1],1], c='r')  # Targeting
+        plt.colorbar(points, shrink=0.6, ax=ax[1])
+        ax[1].set_title('Q_th')
+
+        points = ax[2].scatter(self.X[1:-1, 1:-1, 0].flatten(), self.X[1:-1, 1:-1, 1].flatten(), marker='h',
+                               c=self.Q_cbj[1:-1, 1:-1, 0].flatten())
+        plt.colorbar(points, shrink=0.6, ax=ax[2])
+        ax[2].set_title('Q_cbj[1:-1,1:-1,0]')
+
+        points = ax[3].scatter(self.X[1:-1, 1:-1, 0].flatten(), self.X[1:-1, 1:-1, 1].flatten(), marker='h',
+                               c=self.Q_d[1:-1, 1:-1].flatten())
+        plt.colorbar(points, shrink=0.6, ax=ax[3])
+        datacursor(bbox=dict(alpha=1))
+        ax[3].set_title('Q_d[1:-1,1:-1]')
+        plt.tight_layout()
+        plt.show()
 
 
     def T_1(self, DEBUG = None):  # Water entrainment. IN: Q_a,Q_th,Q_cj,Q_v. OUT: Q_vj,Q_th
@@ -231,26 +265,11 @@ class Hexgrid():
         This function updates Q_a,Q_d,Q_cj and Q_cbj. According to erosion and deposition rules.\
         IN: Q_a,Q_th,Q_cj,Q_cbj,Q_v. OUT:
         '''
-        # R_pj = numpy.ndarray(Nj)
-        # f = numpy.ndarray(Nj)
-        # kappa = double
-        # Ustar = numpy.ndarray(Ny,Nx)
-        # g_reduced = numpy.ndarray(Nj)
-        # v_sjSTAR = numpy.ndarray(Nj)
-        # D_sg = numpy.ndarray(Ny,Nx)
-        # c_nbj = numpy.ndarray(Ny,Nx,Nj)
-        # D_j = numpy.ndarray(Ny,Nx,Nj)
-        # Z_mj = numpy.ndarray(Ny,Nx,Nj)
-        # E_j = numpy.ndarray(Ny,Nx,Nj)
 
         R_pj = T2.calc_Rpj(self.rho_j, self.rho_a, self.D_sj, self.nu, g=self.g)  # Assume rho = rho_ambient.
-        #         print("R_pj=\n",R_pj)
         f = T2.calc_fofR(R_pj)
         kappa = T2.calc_kappa(self.D_sj)
         Ustar = T2.calc_Ustar(self.c_D, self.Q_v)
-        g_reduced = T2.calc_g_reduced(self.rho_j, self.rho_a, g=self.g)
-        # v_sjSTARold = T2.calc_dimless_sphere_settlingVel(self.v_sj, g_reduced, self.nu)
-        # v_sjSTAR = T2.calc_sphere_settlingVel(self.rho_j, self.rho_a, self.g, self.D_sj, self.nu)
         v_sjSTAR = self.v_sj  # Use this according to Salles' email
         D_sg = T2.calc_averageSedimentSize(self.Q_cj, self.D_sj)
         c_nbj = T2.calc_nearBedConcentration_SusSed(self.D_sj, D_sg, self.Q_cj)
@@ -280,14 +299,14 @@ class Hexgrid():
 
         self.Q_a[1:-1, 1:-1] += np.round(T2.T2_calc_change_qd(self.dt, D_j, self.Q_cbj, E_j, self.porosity, oldQ_th, oldQ_cj),15)
         self.Q_d[1:-1, 1:-1] += np.round(T2.T2_calc_change_qd(self.dt, D_j, self.Q_cbj, E_j, self.porosity, oldQ_th, oldQ_cj),15)
-        # self.Q_cj[1:-1, 1:-1, :] -= T2.T2calc_change_qcj(self.dt, D_j, self.Q_cbj, E_j, self.porosity, oldQ_th, oldQ_cj)
+        self.Q_cj[1:-1, 1:-1, :] -= T2.T2calc_change_qcj(self.dt, D_j, self.Q_cbj, E_j, self.porosity, oldQ_th, oldQ_cj)
 
-        tempqcj = T2.T2calc_change_qcj(self.dt, D_j, self.Q_cbj, E_j, self.porosity, oldQ_th, oldQ_cj)
+        # tempqcj = T2.T2calc_change_qcj(self.dt, D_j, self.Q_cbj, E_j, self.porosity, oldQ_th, oldQ_cj)
         self.Q_cbj[1:-1, 1:-1, :] += np.round(T2.T2_calc_change_qCBJ(self.dt, D_j, self.Q_cbj, E_j, self.porosity, oldQ_d,
                                                             oldQ_th, oldQ_cj),13)
-        temp2qcj = T2.T2calc_change_qcj(self.dt, D_j, self.Q_cbj, E_j, self.porosity, oldQ_th, oldQ_cj) # Bruker nye Q_cbj
+        # temp2qcj = T2.T2calc_change_qcj(self.dt, D_j, self.Q_cbj, E_j, self.porosity, oldQ_th, oldQ_cj) # Bruker nye Q_cbj
 
-        self.Q_cj[1:-1, 1:-1,:] -= np.round(0.5*(tempqcj + temp2qcj),15)
+        # self.Q_cj[1:-1, 1:-1,:] -= np.round(0.5*(tempqcj + temp2qcj),15)
 
         # Fail-safe
         self.Q_cbj[self.Q_cbj > 1] = 1
@@ -626,7 +645,7 @@ class Hexgrid():
     def calc_dt(self, global_grid=True):
         temp = self.calc_MaxRelaxationTime()
         try:
-            dt = np.amin(temp[np.isfinite(temp) & (~np.isnan(temp)) & (temp > 0)])
+            dt = np.min([np.amin(temp[np.isfinite(temp) & (~np.isnan(temp)) & (temp > 0)]), 0.2]) # Better stability
         except:
             if global_grid is True:
                 dt = 0.01

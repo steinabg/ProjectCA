@@ -252,9 +252,9 @@ def set_local_grid_source_xy():
     if len(p_local_source_tiles) > 0:
         p_local_grid_parameters['x'] = np.ix_(np.arange(np.min(p_local_source_tile_x),np.max(p_local_source_tile_x)+1))
         p_local_grid_parameters['y'] = np.ix_(np.arange(np.min(p_local_source_tile_y),np.max(p_local_source_tile_y)+1))
-        print("p_local_grid_parameters['x'] = {0}, p_local_grid_parameters['y'] = {1}".format(
-            p_local_grid_parameters['x'], p_local_grid_parameters['y']
-        ))
+        # print("p_local_grid_parameters['x'] = {0}, p_local_grid_parameters['y'] = {1}".format(
+        #     p_local_grid_parameters['x'], p_local_grid_parameters['y']
+        # ))
     # print(p_local_grid_parameters['x'])
     # print(p_local_grid_parameters['y'])
 
@@ -297,6 +297,12 @@ def print_substate(Ny, Nx, i, Q_th, Q_cj, Q_cbj, Q_d, X0, X1, terrain):
                 bbox_inches='tight', pad_inches=0, dpi=240)
     plt.close('all')
 
+def find_channel_bot(Q_a : np.ndarray):
+    bot_indices = []
+    Ny = Q_a.size[0]
+    for i in range(Ny):
+        bot_indices.append((i,np.min(np.where(np.min(Q_a[i,:])==Q_a[i,:]))))
+    return bot_indices
 
 def gather_and_print_Qa_Qd(savename):
     # Check how Q_a and Q_d looks
@@ -464,10 +470,15 @@ if __name__ == "__main__":
     # gather_and_print_Qa_Qd('before.png')
 
 
-
+    image_q_a = gather_grid(p_local_hexgrid.grid.Q_a)
     if my_rank== 0:
+        bottom_indices = find_channel_bot(image_q_a)
+
         from timeit import default_timer as timer
+
+        save_dt = []
         start = timer()
+
     for num_iterations in range(ITERATIONS):
         # Add source
         p_local_hexgrid.addSource(q_th0,q_v0, q_cj0)
@@ -491,6 +502,8 @@ if __name__ == "__main__":
         comm.Allreduce(p_local_dt, p_global_dt, op=MPI.MIN)
         p_global_dt = p_global_dt[0]
         p_local_hexgrid.grid.dt = p_global_dt # Set dt
+        if my_rank == 0:
+            save_dt.append(p_global_dt)
 
         # Iterate CA
         # Can't use p_local_hexgrid.grid.time_step(global_grid=False).
@@ -599,6 +612,11 @@ if __name__ == "__main__":
 
 if my_rank == 0:
     print("time = ", timer() - start)
+    plt.figure()
+    plt.plot(np.arange(ITERATIONS),save_dt)
+    plt.xlabel('iterations')
+    plt.ylabel('dt')
+    plt.savefig('./Data/mpi_combined_png/dt_vs_n.png',bbox_inches='tight', pad_inches=0)
 
 
     # if my_rank == 0: print(IMAGE_Q_o[:,:,0])
