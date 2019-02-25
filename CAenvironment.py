@@ -50,6 +50,7 @@ class CAenvironment():
         self.Ny = parameters['ny']
         self.Nx = parameters['nx']
         self.Nj = parameters['nj']
+        self.dx = parameters['dx']
 
 
 
@@ -82,7 +83,8 @@ class CAenvironment():
 
         self.ICstates = [self.Q_th, self.Q_v, self.Q_cj, self.Q_cbj, self.Q_d, self.Q_o]
 
-        self.grid = Hexgrid(self.Ny, self.Nx, ICstates=self.ICstates, reposeAngle=np.deg2rad(parameters['theta_r']), terrain=self.terrain, global_grid=global_grid)
+        self.grid = Hexgrid(self.Ny, self.Nx, ICstates=self.ICstates, reposeAngle=np.deg2rad(parameters['theta_r']),
+                            dx=self.dx, terrain=self.terrain, global_grid=global_grid)
 
         self.grid.g = parameters['g']  # Gravitational acceleration
         self.grid.f = parameters['f']  # Darcy-Weisbach coeff

@@ -1,7 +1,7 @@
 import numpy as np
 import warnings
 
-def generate_rupert_inlet_bathymetry(repose_angle, Ny=200, Nx=200, channel_amplitude=None, channel_width=None, channeldepth=None):
+def generate_rupert_inlet_bathymetry(repose_angle,dx, Ny=200, Nx=200, channel_amplitude=None, channel_width=None, channeldepth=None):
     # TODO Make bathymetry with varying slope. 12 deg at top according to article
     # Nx = Ny = 200
     X = np.zeros((Nx, Ny))
@@ -10,6 +10,7 @@ def generate_rupert_inlet_bathymetry(repose_angle, Ny=200, Nx=200, channel_ampli
 
     if channel_amplitude is None:
         channel_amplitude = np.round(Nx / 6.667)
+    channel_amplitude = channel_amplitude/dx
 
     indicesX = np.arange(np.round(Ny / 3), Ny + 1)
     indicesY = int(np.round(Nx / 2) + y_offset) + np.round(
@@ -17,6 +18,7 @@ def generate_rupert_inlet_bathymetry(repose_angle, Ny=200, Nx=200, channel_ampli
 
     if channel_width is None:
         channel_width = int(np.round(Nx / 6.667))
+    channel_width = int(np.round(channel_width/dx)) # Convert from meter to cells
     if channeldepth is None:
         channeldepth = np.minimum(int(np.round(Nx / 66.666)),3)
     cross_sectionY = channeldepth * np.sin(np.linspace(np.pi, 2 * np.pi, channel_width))

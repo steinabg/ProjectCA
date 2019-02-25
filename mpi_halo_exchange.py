@@ -263,9 +263,13 @@ def load_txt_files(num_iterations):
     IMAGE_Q_cbj = np.loadtxt(os.path.join(save_path_txt, 'Q_cbj_{0}.txt'.format(num_iterations + 1)))
     IMAGE_Q_cj = np.loadtxt(os.path.join(save_path_txt, 'Q_cj_{0}.txt'.format(num_iterations + 1)))
     IMAGE_Q_d = np.loadtxt(os.path.join(save_path_txt, 'Q_d_{0}.txt'.format(num_iterations + 1)))
-    return IMAGE_Q_th, IMAGE_Q_cbj, IMAGE_Q_cj, IMAGE_Q_d
 
-def print_substate(Ny, Nx, i, Q_th, Q_cj, Q_cbj, Q_d, X0, X1, terrain):
+    ch_bot_thickness = np.loadtxt(os.path.join(save_path_txt, 'ch_bot_thickness_{0}.txt'.format(num_iterations + 1)))
+    ch_bot_outflow = np.loadtxt(os.path.join(save_path_txt, 'ch_bot_outflow_{0}.txt'.format(num_iterations + 1)))
+    ch_bot_speed = np.loadtxt(os.path.join(save_path_txt, 'ch_bot_speed_{0}.txt'.format(num_iterations + 1)))
+    return IMAGE_Q_th, IMAGE_Q_cbj, IMAGE_Q_cj, IMAGE_Q_d, ch_bot_outflow, ch_bot_thickness, ch_bot_speed
+
+def print_substate(Ny, Nx, i, Q_th, Q_cj, Q_cbj, Q_d, X0, X1, terrain, ch_bot_thickness, ch_bot_speed, ch_bot_outflow):
     fig = plt.figure(figsize=(10, 6))
     ax = [fig.add_subplot(2, 2, i, aspect='equal') for i in range(1, 5)]
     ind = np.unravel_index(np.argmax(Q_th, axis=None), Q_th.shape)
@@ -297,9 +301,40 @@ def print_substate(Ny, Nx, i, Q_th, Q_cj, Q_cbj, Q_d, X0, X1, terrain):
                 bbox_inches='tight', pad_inches=0, dpi=240)
     plt.close('all')
 
+    # Plot the 1D substates along the bottom of the channel
+    fig = plt.figure(figsize=(10, 6))
+    ax = [fig.add_subplot(2, 2, i, aspect='auto') for i in range(1, 4)]
+    ax[0].plot(np.arange(len(ch_bot_thickness)), ch_bot_thickness)
+    ax[0].plot((5, 5), (0, 3), 'k-')
+    ax[0].set_title('1D Q_th, time step = %03i' % (i + 1))
+    ax[0].set_ylim([0, 3])
+    ax[0].set_ylabel('Q_{th}')
+    for xx in range(0, 3):
+        ax[xx].set_xlabel('y: Channel axis')
+
+
+    # plt.figure(figsize=(10, 6))
+    ax[1].plot(np.arange(len(ch_bot_speed)), ch_bot_speed)
+    ax[1].plot((5, 5), (0, 0.2), 'k-')
+    ax[1].set_title('1D speed, time step = %03i' % (i + 1))
+    ax[1].set_ylim([0, 0.2])
+    ax[1].set_ylabel('Q_{v}')
+    # plt.savefig('ch_bot_speed_%03i.png' %(i+1), bbox_inches='tight',pad_inches=0,dpi=240)
+
+    # ax[2].figure(figsize=(10, 6))
+    ax[2].plot(np.arange(len(ch_bot_speed)), ch_bot_outflow)
+    ax[2].plot((5, 5), (0, 2), 'k-')
+    ax[2].set_title('Sum 1D outflow, time step = %03i' % (i + 1))
+    ax[2].set_ylim([0, 2])
+    ax[2].set_ylabel('sum(Q_{o}[y,x])')
+    plt.tight_layout()
+    plt.savefig('./Data/mpi_combined_png/ch_bot_%03i.png' % (i + 1), bbox_inches='tight', pad_inches=0, dpi=240)
+
+    plt.close('all')
+
 def find_channel_bot(Q_a : np.ndarray):
     bot_indices = []
-    Ny = Q_a.size[0]
+    Ny = Q_a.shape[0]
     for i in range(Ny):
         bot_indices.append((i,np.min(np.where(np.min(Q_a[i,:])==Q_a[i,:]))))
     return bot_indices
@@ -389,6 +424,7 @@ if __name__ == "__main__":
     def generate_p_local_hex_bathymetry(terrain):
         if terrain == 'rupert':
             global_bathy, junk = ma.generate_rupert_inlet_bathymetry(parameters['theta_r'],
+                                                                     parameters['dx'],
                                                                      Ny=parameters['ny'],
                                                                      Nx=parameters['nx'])
             global_bathy = np.transpose(global_bathy)
@@ -513,13 +549,13 @@ if __name__ == "__main__":
         exchange_borders_cube(p_local_hexgrid.grid.Q_cj, parameters['nj'])
         exchange_borders_matrix(p_local_hexgrid.grid.Q_th)
         set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims)
-        # p_local_hexgrid.grid.T_2()
-        # p_local_hexgrid.grid.sanityCheck()
-        # exchange_borders_matrix(p_local_hexgrid.grid.Q_d)
-        # exchange_borders_matrix(p_local_hexgrid.grid.Q_a)
-        # exchange_borders_cube(p_local_hexgrid.grid.Q_cbj, parameters['nj'])
-        # exchange_borders_cube(p_local_hexgrid.grid.Q_cj, parameters['nj'])
-        # set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims)
+        p_local_hexgrid.grid.T_2()
+        p_local_hexgrid.grid.sanityCheck()
+        exchange_borders_matrix(p_local_hexgrid.grid.Q_d)
+        exchange_borders_matrix(p_local_hexgrid.grid.Q_a)
+        exchange_borders_cube(p_local_hexgrid.grid.Q_cbj, parameters['nj'])
+        exchange_borders_cube(p_local_hexgrid.grid.Q_cj, parameters['nj'])
+        set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims)
         p_local_hexgrid.grid.I_1()
         p_local_hexgrid.grid.sanityCheck()
         exchange_borders_cube(p_local_hexgrid.grid.Q_o, 6)
@@ -576,25 +612,35 @@ if __name__ == "__main__":
             IMAGE_Q_cbj = gather_cube(p_local_hexgrid.grid.Q_cbj, parameters['nj'])
             IMAGE_Q_cj = gather_cube(p_local_hexgrid.grid.Q_cj, parameters['nj'])
             IMAGE_Q_d = gather_grid(p_local_hexgrid.grid.Q_d)
+            IMAGE_Q_v = gather_grid(p_local_hexgrid.grid.Q_v)
+            IMAGE_Q_o = gather_cube(p_local_hexgrid.grid.Q_o,6)
 
             if my_rank== 0:
+                ch_bot_thickness = [IMAGE_Q_th[bottom_indices[i]] for i in
+                                    range(len(bottom_indices))]
+                ch_bot_speed = [IMAGE_Q_v[bottom_indices[i]] for i in range(len(bottom_indices))]
+                ch_bot_outflow = [sum(IMAGE_Q_o[bottom_indices[i]]) for i in
+                                  range(len(bottom_indices))]
+
                 np.savetxt(os.path.join(save_path_txt, 'Q_th_{0}.txt'.format(num_iterations + 1)), IMAGE_Q_th)
                 np.savetxt(os.path.join(save_path_txt, 'Q_cbj_{0}.txt'.format(num_iterations + 1)), IMAGE_Q_cbj[:, :, 0])
                 np.savetxt(os.path.join(save_path_txt, 'Q_cj_{0}.txt'.format(num_iterations + 1)), IMAGE_Q_cj[:, :, 0])
                 np.savetxt(os.path.join(save_path_txt, 'Q_d_{0}.txt'.format(num_iterations + 1)), IMAGE_Q_d)
+                np.savetxt(os.path.join(save_path_txt, 'ch_bot_outflow_{0}.txt'.format(num_iterations + 1)), ch_bot_outflow)
+                np.savetxt(os.path.join(save_path_txt, 'ch_bot_speed_{0}.txt'.format(num_iterations + 1)), ch_bot_speed)
+                np.savetxt(os.path.join(save_path_txt, 'ch_bot_thickness_{0}.txt'.format(num_iterations + 1)), ch_bot_thickness)
 
 
 
-    comm.barrier()
 
     # Gather the results
-    IMAGE_Q_th = gather_grid(p_local_hexgrid.grid.Q_th)
-    IMAGE_Q_v = gather_grid(p_local_hexgrid.grid.Q_v)
-    IMAGE_Q_cbj = gather_cube(p_local_hexgrid.grid.Q_cbj, parameters['nj'])
-    IMAGE_Q_cj = gather_cube(p_local_hexgrid.grid.Q_cj, parameters['nj'])
-    IMAGE_Q_d = gather_grid(p_local_hexgrid.grid.Q_d)
-    IMAGE_Q_a = gather_grid(p_local_hexgrid.grid.Q_a)
-    IMAGE_Q_o = gather_cube(p_local_hexgrid.grid.Q_o, 6)
+    # IMAGE_Q_th = gather_grid(p_local_hexgrid.grid.Q_th)
+    # IMAGE_Q_v = gather_grid(p_local_hexgrid.grid.Q_v)
+    # IMAGE_Q_cbj = gather_cube(p_local_hexgrid.grid.Q_cbj, parameters['nj'])
+    # IMAGE_Q_cj = gather_cube(p_local_hexgrid.grid.Q_cj, parameters['nj'])
+    # IMAGE_Q_d = gather_grid(p_local_hexgrid.grid.Q_d)
+    # IMAGE_Q_a = gather_grid(p_local_hexgrid.grid.Q_a)
+    # IMAGE_Q_o = gather_cube(p_local_hexgrid.grid.Q_o, 6)
 
 
     # Print figures
@@ -603,13 +649,20 @@ if __name__ == "__main__":
     X0 = np.loadtxt(os.path.join(save_path_txt, 'X000.txt'))
     X1 = np.loadtxt(os.path.join(save_path_txt, 'X001.txt'))
 
-    for i in range(my_rank*figs_per_proc,(my_rank+1)*figs_per_proc):
-        IMAGE_Q_th, IMAGE_Q_cbj, IMAGE_Q_cj, IMAGE_Q_d = load_txt_files(i_sample_values[i])
+    upper_lim = (my_rank+1)*figs_per_proc
+    if my_rank == (num_procs-1) and (upper_lim-1) < num_figs:
+        # print("rank ={0}, upperlim = {1}, numprocs = {2}".format(my_rank,upper_lim, num_procs))
+        upper_lim = num_figs
+        # print(upper_lim)
+    for i in range(my_rank*figs_per_proc,upper_lim):
+        IMAGE_Q_th, IMAGE_Q_cbj, IMAGE_Q_cj, IMAGE_Q_d,\
+        ch_bot_outflow, ch_bot_thickness, ch_bot_speed =\
+            load_txt_files(i_sample_values[i])
         print_substate(parameters['ny'],parameters['nx'],i_sample_values[i],
                        IMAGE_Q_th, IMAGE_Q_cj, IMAGE_Q_cbj, IMAGE_Q_d,
-                       X0, X1, parameters['terrain'])
+                       X0, X1, parameters['terrain'], ch_bot_thickness, ch_bot_speed, ch_bot_outflow)
 
-
+comm.barrier()
 if my_rank == 0:
     print("time = ", timer() - start)
     plt.figure()
