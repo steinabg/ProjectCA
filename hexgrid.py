@@ -284,8 +284,8 @@ class Hexgrid():
         oldQ_d = self.Q_d.copy()
 
         # Rescale D_j and E_j to prevent too much material being moved
-        D_j, E_j = T2.rescale_Dj_E_j(D_j, self.dt, self.porosity, self.Q_th, self.Q_cj, self.p_adh, self.Q_cbj, E_j,
-                                     self.Q_d)
+        # D_j, E_j = T2.rescale_Dj_E_j(D_j, self.dt, self.porosity, self.Q_th, self.Q_cj, self.p_adh, self.Q_cbj, E_j,
+        #                              self.Q_d)
 
         # IF Q_cj = 1 increase the deposition rate D_j to compensate?
         #         temp_delta_qa = T2.T2_calc_change_qd(self.dt,D_j,self.Q_cbj,E_j,self.porosity, oldQ_th, oldQ_cj)
@@ -299,7 +299,7 @@ class Hexgrid():
 
         self.Q_a[1:-1, 1:-1] += np.round(T2.T2_calc_change_qd(self.dt, D_j, self.Q_cbj, E_j, self.porosity, oldQ_th, oldQ_cj),15)
         self.Q_d[1:-1, 1:-1] += np.round(T2.T2_calc_change_qd(self.dt, D_j, self.Q_cbj, E_j, self.porosity, oldQ_th, oldQ_cj),15)
-        self.Q_cj[1:-1, 1:-1, :] -= T2.T2calc_change_qcj(self.dt, D_j, self.Q_cbj, E_j, self.porosity, oldQ_th, oldQ_cj)
+        # self.Q_cj[1:-1, 1:-1, :] -= T2.T2calc_change_qcj(self.dt, D_j, self.Q_cbj, E_j, self.porosity, oldQ_th, oldQ_cj)
 
         # tempqcj = T2.T2calc_change_qcj(self.dt, D_j, self.Q_cbj, E_j, self.porosity, oldQ_th, oldQ_cj)
         self.Q_cbj[1:-1, 1:-1, :] += np.round(T2.T2_calc_change_qCBJ(self.dt, D_j, self.Q_cbj, E_j, self.porosity, oldQ_d,
@@ -597,7 +597,7 @@ class Hexgrid():
                 # mat = scipy.io.loadmat('rupert_inlet_200x200.mat')
                 # mat['X'] = np.transpose(mat['X'])
                 # self.Q_a += mat['X']
-                temp, junk = ma.generate_rupert_inlet_bathymetry(self.reposeAngle, self.Ny,self.Nx)
+                temp, junk = ma.generate_rupert_inlet_bathymetry(self.reposeAngle, self.dx, self.Ny,self.Nx)
                 self.Q_a += np.transpose(temp)
 
     def calc_bathymetryDiff(self):
