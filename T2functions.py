@@ -163,7 +163,7 @@ def calc_fofR(R_pj):
     :rtype: numpy.ndarray(Nj)
     :return: This function returns the value defined by eq.(40)
     '''
-    if (R_pj < 1):
+    if (np.any(R_pj) < 1):
         raise("Undefined function value for R_pj<1 !")
     return np.where(R_pj >= 3.5, R_pj ** (0.6), 0.586 * R_pj ** (1.23))
 

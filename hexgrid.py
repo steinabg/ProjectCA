@@ -176,7 +176,9 @@ class Hexgrid():
             self.unphysical_substate['Q_o'] = 1
             raise Exception('unphysical_substate[Q_o]')
 
-        if (np.any(self.Q_cbj[self.Q_cbj > 0] != 1)):
+        t1 = np.sum(self.Q_cbj,2)
+        if (np.any(t1) != 1) and np.any(t1) != 0:
+            print(np.where(np.sum(self.Q_cbj,2) != 1))
             raise Exception("should always be 1 with nj=1!")
 
 

@@ -259,23 +259,32 @@ def set_local_grid_source_xy():
     # print(p_local_grid_parameters['y'])
 
 def load_txt_files(num_iterations):
-    IMAGE_Q_th = np.loadtxt(os.path.join(save_path_txt, 'Q_th_{0}.txt'.format(num_iterations + 1)))
-    IMAGE_Q_cbj = np.loadtxt(os.path.join(save_path_txt, 'Q_cbj_{0}.txt'.format(num_iterations + 1)))
-    IMAGE_Q_cj = np.loadtxt(os.path.join(save_path_txt, 'Q_cj_{0}.txt'.format(num_iterations + 1)))
-    IMAGE_Q_d = np.loadtxt(os.path.join(save_path_txt, 'Q_d_{0}.txt'.format(num_iterations + 1)))
+    IMAGE_Q_th  = np.load(os.path.join(save_path_txt,  'Q_th_{0}.npy'.format(num_iterations + 1)))
+    IMAGE_Q_cbj = np.load(os.path.join(save_path_txt, 'Q_cbj_{0}.npy'.format(num_iterations + 1)))
+    IMAGE_Q_cj  = np.load(os.path.join(save_path_txt,  'Q_cj_{0}.npy'.format(num_iterations + 1)))
+    IMAGE_Q_d   = np.load(os.path.join(save_path_txt,   'Q_d_{0}.npy'.format(num_iterations + 1)))
 
-    ch_bot_thickness = np.loadtxt(os.path.join(save_path_txt, 'ch_bot_thickness_{0}.txt'.format(num_iterations + 1)))
-    ch_bot_outflow = np.loadtxt(os.path.join(save_path_txt, 'ch_bot_outflow_{0}.txt'.format(num_iterations + 1)))
-    ch_bot_speed = np.loadtxt(os.path.join(save_path_txt, 'ch_bot_speed_{0}.txt'.format(num_iterations + 1)))
-    return IMAGE_Q_th, IMAGE_Q_cbj, IMAGE_Q_cj, IMAGE_Q_d, ch_bot_outflow, ch_bot_thickness, ch_bot_speed
+    ch_bot_thickness = np.load(os.path.join(save_path_txt, 'ch_bot_thickness_{0}.npy'.format(num_iterations + 1)))
+    ch_bot_outflow   = np.load(os.path.join(save_path_txt,   'ch_bot_outflow_{0}.npy'.format(num_iterations + 1)))
+    ch_bot_speed     = np.load(os.path.join(save_path_txt,     'ch_bot_speed_{0}.npy'.format(num_iterations + 1)))
+    ch_bot_sediment     = np.load(os.path.join(save_path_txt,     'ch_bot_sediment_{0}.npy'.format(num_iterations + 1)))
+    ch_bot_sediment_cons0     = np.load(os.path.join(save_path_txt,     'ch_bot_sediment_cons0_{0}.npy'.format(num_iterations + 1)))
+    ch_bot_sediment_cons1     = np.load(os.path.join(save_path_txt,     'ch_bot_sediment_cons1_{0}.npy'.format(num_iterations + 1)))
+    ch_bot_thickness_cons0     = np.load(os.path.join(save_path_txt,     'ch_bot_thickness_cons0_{0}.npy'.format(num_iterations + 1)))
+    ch_bot_thickness_cons1     = np.load(os.path.join(save_path_txt,     'ch_bot_thickness_cons1_{0}.npy'.format(num_iterations + 1)))
+    return IMAGE_Q_th, IMAGE_Q_cbj, IMAGE_Q_cj, IMAGE_Q_d, ch_bot_outflow, ch_bot_thickness,\
+           ch_bot_speed, ch_bot_sediment, ch_bot_sediment_cons0, ch_bot_sediment_cons1,\
+           ch_bot_thickness_cons0, ch_bot_thickness_cons1
 
-def print_substate(Ny, Nx, i, Q_th, Q_cj, Q_cbj, Q_d, X0, X1, terrain, ch_bot_thickness, ch_bot_speed, ch_bot_outflow):
+def print_substate(Ny, Nx, i, Q_th, Q_cj, Q_cbj, Q_d, X0, X1, terrain,
+                   ch_bot_thickness, ch_bot_speed, ch_bot_outflow, ch_bot_sediment,
+                   ch_bot_sediment_cons0, ch_bot_sediment_cons1, ch_bot_thickness_cons0, ch_bot_thickness_cons1):
     fig = plt.figure(figsize=(10, 6))
-    ax = [fig.add_subplot(2, 2, i, aspect='equal') for i in range(1, 5)]
+    ax = [fig.add_subplot(3, 2, i, aspect='equal') for i in range(1, 7)]
     ind = np.unravel_index(np.argmax(Q_th, axis=None), Q_th.shape)
 
     points = ax[0].scatter(X0.flatten(), X1.flatten(), marker='h',
-                           c=Q_cj[:, :].flatten())
+                           c=Q_cj[:, :,0].flatten())
 
     plt.colorbar(points, shrink=0.6, ax=ax[0])
     ax[0].set_title('Q_cj[:,:,0]. n = ' + str(i + 1))
@@ -287,7 +296,7 @@ def print_substate(Ny, Nx, i, Q_th, Q_cj, Q_cbj, Q_d, X0, X1, terrain, ch_bot_th
     ax[1].set_title('Q_th')
 
     points = ax[2].scatter(X0[1:-1, 1:-1].flatten(), X1[1:-1, 1:-1].flatten(), marker='h',
-                           c=Q_cbj[1:-1, 1:-1].flatten())
+                           c=Q_cbj[1:-1, 1:-1,0].flatten())
     plt.colorbar(points, shrink=0.6, ax=ax[2])
     ax[2].set_title('Q_cbj[1:-1,1:-1,0]')
 
@@ -295,6 +304,17 @@ def print_substate(Ny, Nx, i, Q_th, Q_cj, Q_cbj, Q_d, X0, X1, terrain, ch_bot_th
                            c=Q_d[1:-1, 1:-1].flatten())
     plt.colorbar(points, shrink=0.6, ax=ax[3])
     ax[3].set_title('Q_d[1:-1,1:-1]')
+
+
+    points = ax[4].scatter(X0[1:-1, 1:-1].flatten(), X1[1:-1, 1:-1].flatten(), marker='h',
+                           c=Q_cbj[1:-1, 1:-1,1].flatten())
+    plt.colorbar(points, shrink=0.6, ax=ax[4])
+    ax[4].set_title('Q_cbj[1:-1,1:-1,1]')
+
+    points = ax[5].scatter(X0[1:-1, 1:-1].flatten(), X1[1:-1, 1:-1].flatten(), marker='h',
+                           c=Q_cj[1:-1, 1:-1, 1].flatten())
+    plt.colorbar(points, shrink=0.6, ax=ax[5])
+    ax[5].set_title('Q_cj[1:-1,1:-1,1]')
     plt.tight_layout()
     s1 = str(terrain) if terrain is None else terrain
     plt.savefig(os.path.join(save_path_png,'full_%03ix%03i_%s_%03i_thetar%0.0f.png' % (Nx, Ny, s1, i + 1, parameters['theta_r'])),
@@ -303,12 +323,22 @@ def print_substate(Ny, Nx, i, Q_th, Q_cj, Q_cbj, Q_d, X0, X1, terrain, ch_bot_th
 
     # Plot the 1D substates along the bottom of the channel
     fig = plt.figure(figsize=(10, 6))
-    ax = [fig.add_subplot(2, 2, i, aspect='auto') for i in range(1, 4)]
-    ax[0].plot(np.arange(len(ch_bot_thickness)), ch_bot_thickness)
+    ax = [fig.add_subplot(2, 2, i, aspect='auto') for i in range(1, 5)]
+    lnns1 = ax[0].plot(np.arange(len(ch_bot_thickness)), ch_bot_thickness, label='Q_th')
     ax[0].plot((5, 5), (0, 3), 'k-')
     ax[0].set_title('1D Q_th, time step = %03i' % (i + 1))
     ax[0].set_ylim([0, 3])
     ax[0].set_ylabel('Q_{th}')
+    ax3 = ax[0].twinx()
+    lnns2 = ax3.plot(np.arange(len(ch_bot_speed)), ch_bot_thickness_cons0, color='tab:red', linestyle='--', label='Q_cbj[y,x,0]')
+    lnns3 = ax3.plot(np.arange(len(ch_bot_speed)), ch_bot_thickness_cons1, color='tab:cyan', linestyle='-.', label='Q_cbj[y,x,1]')
+    lnns = lnns1 + lnns2 + lnns3
+    labbs = [l.get_label() for l in lnns]
+    ax[0].legend(lnns, labbs, loc=0)
+    maxconc = np.max([np.amax(ch_bot_thickness_cons0), np.amax(ch_bot_thickness_cons1)])
+    upper = (0.1 * (maxconc//0.1) + 0.1)
+    ax3.set_ylim([0, upper])
+    ax3.set_ylabel('Concentration')
     for xx in range(0, 3):
         ax[xx].set_xlabel('y: Channel axis')
 
@@ -327,6 +357,20 @@ def print_substate(Ny, Nx, i, Q_th, Q_cj, Q_cbj, Q_d, X0, X1, terrain, ch_bot_th
     ax[2].set_title('Sum 1D outflow, time step = %03i' % (i + 1))
     ax[2].set_ylim([0, 2])
     ax[2].set_ylabel('sum(Q_{o}[y,x])')
+
+    lns1 = ax[3].plot(np.arange(len(ch_bot_speed)), ch_bot_sediment, label='Q_{d}')
+    # ax[3].plot((5, 5), (0, 2), 'k-')
+    ax[3].set_title('Sediment, time step = %03i' % (i + 1))
+    # ax[3].set_ylim([0, 2])
+    ax[3].set_ylabel('Q_{d}[y,x])')
+    ax2 = ax[3].twinx()
+    lns2 = ax2.plot(np.arange(len(ch_bot_speed)), ch_bot_sediment_cons0, color='tab:red', label='Q_cbj[y,x,0]')
+    lns3 = ax2.plot(np.arange(len(ch_bot_speed)), ch_bot_sediment_cons1, color='tab:cyan', label='Q_cbj[y,x,1]')
+    lns = lns1 + lns2 + lns3
+    labs = [l.get_label() for l in lns]
+    ax[3].legend(lns, labs, loc=0)
+    ax2.set_ylim([0,1])
+    ax2.set_ylabel('Concentration')
     plt.tight_layout()
     plt.savefig('./Data/mpi_combined_png/ch_bot_%03i.png' % (i + 1), bbox_inches='tight', pad_inches=0, dpi=240)
 
@@ -495,8 +539,8 @@ if __name__ == "__main__":
     save_path_txt = './Data/mpi_combined_txt'
     save_path_png = './Data/mpi_combined_png'
     if my_rank == 0:
-        np.savetxt(os.path.join(save_path_txt, 'X000.txt'), result_grid.grid.X[:, :, 0])
-        np.savetxt(os.path.join(save_path_txt, 'X001.txt'), result_grid.grid.X[:, :, 1])
+        np.save(os.path.join(save_path_txt, 'X000'), result_grid.grid.X[:, :, 0])
+        np.save(os.path.join(save_path_txt, 'X001'), result_grid.grid.X[:, :, 1])
 
     q_th0 = parameters['q_th[y,x]']
     q_cj0 = parameters['q_cj[y,x,0]']
@@ -619,16 +663,26 @@ if __name__ == "__main__":
                 ch_bot_thickness = [IMAGE_Q_th[bottom_indices[i]] for i in
                                     range(len(bottom_indices))]
                 ch_bot_speed = [IMAGE_Q_v[bottom_indices[i]] for i in range(len(bottom_indices))]
+                ch_bot_thickness_cons0 = [IMAGE_Q_cj[bottom_indices[i] + (0,)] for i in range(len(bottom_indices))]
+                ch_bot_thickness_cons1 = [IMAGE_Q_cj[bottom_indices[i] + (1,)] for i in range(len(bottom_indices))]
+                ch_bot_sediment = [IMAGE_Q_d[bottom_indices[i]] for i in range(len(bottom_indices))]
+                ch_bot_sediment_cons0 = [IMAGE_Q_cbj[bottom_indices[i] + (0,)] for i in range(len(bottom_indices))]
+                ch_bot_sediment_cons1 = [IMAGE_Q_cbj[bottom_indices[i] + (1,)] for i in range(len(bottom_indices))]
                 ch_bot_outflow = [sum(IMAGE_Q_o[bottom_indices[i]]) for i in
                                   range(len(bottom_indices))]
 
-                np.savetxt(os.path.join(save_path_txt, 'Q_th_{0}.txt'.format(num_iterations + 1)), IMAGE_Q_th)
-                np.savetxt(os.path.join(save_path_txt, 'Q_cbj_{0}.txt'.format(num_iterations + 1)), IMAGE_Q_cbj[:, :, 0])
-                np.savetxt(os.path.join(save_path_txt, 'Q_cj_{0}.txt'.format(num_iterations + 1)), IMAGE_Q_cj[:, :, 0])
-                np.savetxt(os.path.join(save_path_txt, 'Q_d_{0}.txt'.format(num_iterations + 1)), IMAGE_Q_d)
-                np.savetxt(os.path.join(save_path_txt, 'ch_bot_outflow_{0}.txt'.format(num_iterations + 1)), ch_bot_outflow)
-                np.savetxt(os.path.join(save_path_txt, 'ch_bot_speed_{0}.txt'.format(num_iterations + 1)), ch_bot_speed)
-                np.savetxt(os.path.join(save_path_txt, 'ch_bot_thickness_{0}.txt'.format(num_iterations + 1)), ch_bot_thickness)
+                np.save(os.path.join(save_path_txt, 'Q_th_{0}'.format(num_iterations + 1)), IMAGE_Q_th)
+                np.save(os.path.join(save_path_txt, 'Q_cbj_{0}'.format(num_iterations + 1)), IMAGE_Q_cbj)
+                np.save(os.path.join(save_path_txt, 'Q_cj_{0}'.format(num_iterations + 1)), IMAGE_Q_cj)
+                np.save(os.path.join(save_path_txt, 'Q_d_{0}'.format(num_iterations + 1)), IMAGE_Q_d)
+                np.save(os.path.join(save_path_txt, 'ch_bot_outflow_{0}'.format(num_iterations + 1)), ch_bot_outflow)
+                np.save(os.path.join(save_path_txt, 'ch_bot_speed_{0}'.format(num_iterations + 1)), ch_bot_speed)
+                np.save(os.path.join(save_path_txt, 'ch_bot_thickness_{0}'.format(num_iterations + 1)), ch_bot_thickness)
+                np.save(os.path.join(save_path_txt, 'ch_bot_sediment_{0}'.format(num_iterations + 1)), ch_bot_sediment)
+                np.save(os.path.join(save_path_txt, 'ch_bot_sediment_cons0_{0}'.format(num_iterations + 1)), ch_bot_sediment_cons0)
+                np.save(os.path.join(save_path_txt, 'ch_bot_sediment_cons1_{0}'.format(num_iterations + 1)), ch_bot_sediment_cons1)
+                np.save(os.path.join(save_path_txt, 'ch_bot_thickness_cons0_{0}'.format(num_iterations + 1)), ch_bot_thickness_cons0)
+                np.save(os.path.join(save_path_txt, 'ch_bot_thickness_cons1_{0}'.format(num_iterations + 1)), ch_bot_thickness_cons1)
 
 
 
@@ -646,8 +700,8 @@ if __name__ == "__main__":
     # Print figures
     num_figs = ITERATIONS//sample_rate
     figs_per_proc = num_figs//num_procs
-    X0 = np.loadtxt(os.path.join(save_path_txt, 'X000.txt'))
-    X1 = np.loadtxt(os.path.join(save_path_txt, 'X001.txt'))
+    X0 = np.load(os.path.join(save_path_txt, 'X000.npy'))
+    X1 = np.load(os.path.join(save_path_txt, 'X001.npy'))
 
     upper_lim = (my_rank+1)*figs_per_proc
     if my_rank == (num_procs-1) and (upper_lim-1) < num_figs:
@@ -656,11 +710,15 @@ if __name__ == "__main__":
         # print(upper_lim)
     for i in range(my_rank*figs_per_proc,upper_lim):
         IMAGE_Q_th, IMAGE_Q_cbj, IMAGE_Q_cj, IMAGE_Q_d,\
-        ch_bot_outflow, ch_bot_thickness, ch_bot_speed =\
+        ch_bot_outflow, ch_bot_thickness, ch_bot_speed,\
+        ch_bot_sediment, ch_bot_sediment_cons0, ch_bot_sediment_cons1,\
+        ch_bot_thickness_cons0, ch_bot_thickness_cons1 =\
             load_txt_files(i_sample_values[i])
         print_substate(parameters['ny'],parameters['nx'],i_sample_values[i],
                        IMAGE_Q_th, IMAGE_Q_cj, IMAGE_Q_cbj, IMAGE_Q_d,
-                       X0, X1, parameters['terrain'], ch_bot_thickness, ch_bot_speed, ch_bot_outflow)
+                       X0, X1, parameters['terrain'], ch_bot_thickness, ch_bot_speed, ch_bot_outflow,
+                       ch_bot_sediment, ch_bot_sediment_cons0, ch_bot_sediment_cons1,
+                       ch_bot_thickness_cons0, ch_bot_thickness_cons1)
 
 comm.barrier()
 if my_rank == 0:

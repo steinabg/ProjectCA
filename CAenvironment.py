@@ -70,9 +70,12 @@ class CAenvironment():
             self.y, self.x = np.meshgrid(parameters['y'],parameters['x'])
             self.Q_th[self.y, self.x] = parameters['q_th[y,x]']  # 1.5
             self.Q_v[self.y, self.x] = parameters['q_v[y,x]']  # 0.2
-            self.Q_cj[self.y, self.x, 0] = parameters['q_cj[y,x,0]']  # 0.003
-            self.Q_cbj[self.y, self.x, 0] = parameters['q_cbj[y,x,0]']  # 1
             self.Q_d[self.y, self.x] = parameters['q_d[y,x]']  # 1
+            for particle_type in range(self.Nj):
+                parameter_string1 = 'q_cj[y,x,' + str(particle_type) + ']'
+                parameter_string2 = 'q_cbj[y,x,' + str(particle_type) + ']'
+                self.Q_cj[self.y, self.x, particle_type] = parameters[parameter_string1]  # 0.003
+                self.Q_cbj[self.y, self.x, particle_type] = parameters[parameter_string2]  # 1
 
         # Initial sand cover
         self.Q_cbj[1:-1, 1:-1, 0] = parameters['q_cbj[interior, 0]']  # 1
@@ -297,8 +300,11 @@ class CAenvironment():
         # grid.Q_th[y, x] += 1.5
         if (self.parameters['x'] is not None) and (self.parameters['y'] is not None):
             self.grid.Q_v[self.y, self.x] = (self.grid.Q_v[self.y, self.x] * self.grid.Q_th[self.y,self.x] + q_v0 * q_th0*self.grid.dt) / (q_th0*self.grid.dt + self.grid.Q_th[self.y, self.x])
-            self.grid.Q_cj[self.y, self.x, 0] = (self.grid.Q_cj[self.y, self.x, 0] * self.grid.Q_th[self.y, self.x] + q_cj0 * q_th0*self.grid.dt) / (1.5*self.grid.dt + self.grid.Q_th[self.y, self.x])
             self.grid.Q_th[self.y, self.x] += q_th0*self.grid.dt
+            for particle_type in range(self.Nj):
+                self.grid.Q_cj[self.y, self.x, particle_type] = (self.grid.Q_cj[self.y, self.x, particle_type] * self.grid.Q_th[
+                    self.y, self.x] + q_cj0 * q_th0 * self.grid.dt) / (
+                                                                1.5 * self.grid.dt + self.grid.Q_th[self.y, self.x])
         else:
             pass
 
