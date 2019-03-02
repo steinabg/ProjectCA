@@ -94,7 +94,7 @@ def calc_erotionRate(Z_mj):
     :rtype: numpy.ndarray(Ny,Nx,Nj)
     :return: Deposition rate
     '''
-    return 1.3e-07 * Z_mj ** 5 / (1 + 4.3e-07 * Z_mj ** 5)
+    return 1.3e-07 * (Z_mj ** 5) / (1 + 4.3e-07 * (Z_mj ** 5))
 
 
 def calc_Z_mj(kappa, Ustar, v_sj, f):

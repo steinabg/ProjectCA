@@ -299,16 +299,11 @@ class Hexgrid():
         self.Depositionrate.append(np.amax(D_j.flatten()))
         #######
 
-        self.Q_a[1:-1, 1:-1] += np.round(T2.T2_calc_change_qd(self.dt, D_j, self.Q_cbj, E_j, self.porosity, oldQ_th, oldQ_cj),15)
-        self.Q_d[1:-1, 1:-1] += np.round(T2.T2_calc_change_qd(self.dt, D_j, self.Q_cbj, E_j, self.porosity, oldQ_th, oldQ_cj),15)
-        # self.Q_cj[1:-1, 1:-1, :] -= T2.T2calc_change_qcj(self.dt, D_j, self.Q_cbj, E_j, self.porosity, oldQ_th, oldQ_cj)
-
-        # tempqcj = T2.T2calc_change_qcj(self.dt, D_j, self.Q_cbj, E_j, self.porosity, oldQ_th, oldQ_cj)
-        self.Q_cbj[1:-1, 1:-1, :] += np.round(T2.T2_calc_change_qCBJ(self.dt, D_j, self.Q_cbj, E_j, self.porosity, oldQ_d,
-                                                            oldQ_th, oldQ_cj),13)
-        # temp2qcj = T2.T2calc_change_qcj(self.dt, D_j, self.Q_cbj, E_j, self.porosity, oldQ_th, oldQ_cj) # Bruker nye Q_cbj
-
-        # self.Q_cj[1:-1, 1:-1,:] -= np.round(0.5*(tempqcj + temp2qcj),15)
+        self.Q_a[1:-1, 1:-1] += self.dt*f_s/(1-self.porosity)
+        self.Q_d[1:-1, 1:-1] += self.dt*f_s/(1-self.porosity)
+        # self.Q_cj[1:-1, 1:-1, :] -= np.nan_to_num(self.dt*f_sj/((1-self.porosity)*self.Q_th[1:-1,1:-1, None]))
+        self.Q_cbj[1:-1, 1:-1, :] += np.nan_to_num(self.dt/((1-self.porosity) * oldQ_d[1:-1,1:-1, None]) *\
+                                     (f_sj - self.Q_cbj[1:-1,1:-1,:] * f_s[:,:,None]))
 
         # Fail-safe
         self.Q_cbj[self.Q_cbj > 1] = 1
