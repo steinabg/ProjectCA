@@ -301,7 +301,7 @@ class Hexgrid():
 
         self.Q_a[1:-1, 1:-1] += self.dt*f_s/(1-self.porosity)
         self.Q_d[1:-1, 1:-1] += self.dt*f_s/(1-self.porosity)
-        # self.Q_cj[1:-1, 1:-1, :] -= np.nan_to_num(self.dt*f_sj/((1-self.porosity)*self.Q_th[1:-1,1:-1, None]))
+        # self.Q_cj[1:-1, 1:-1, :] -= np.round(np.nan_to_num(self.dt*f_sj/((1-self.porosity)*self.Q_th[1:-1,1:-1, None])),16)
         self.Q_cbj[1:-1, 1:-1, :] += np.nan_to_num(self.dt/((1-self.porosity) * oldQ_d[1:-1,1:-1, None]) *\
                                      (f_sj - self.Q_cbj[1:-1,1:-1,:] * f_s[:,:,None]))
 
