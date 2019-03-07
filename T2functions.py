@@ -150,7 +150,7 @@ def calc_Ustar(c_D, q_v):
     :rtype: numpy.ndarray(Ny,Nx)
 
     '''
-    return c_D * q_v
+    return np.sqrt(c_D * q_v**2)
 
 
 def calc_fofR(R_pj):

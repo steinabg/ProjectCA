@@ -272,17 +272,26 @@ class Hexgrid():
         f = T2.calc_fofR(R_pj)
         kappa = T2.calc_kappa(self.D_sj)
         Ustar = T2.calc_Ustar(self.c_D, self.Q_v)
-        v_sjSTAR = self.v_sj  # Use this according to Salles' email
+        v_sjSTAR = self.v_sj**3 * self.rho_a / ((self.rho_j - self.rho_a) * self.g * self.nu) # Eq. (5) Dietrich
         D_sg = T2.calc_averageSedimentSize(self.Q_cj, self.D_sj)
         c_nbj = T2.calc_nearBedConcentration_SusSed(self.D_sj, D_sg, self.Q_cj)
 
         D_j = np.nan_to_num(T2.calc_depositionRate(v_sjSTAR, c_nbj))
         Z_mj = T2.calc_Z_mj(kappa, Ustar, v_sjSTAR, f)
-        E_j = T2.calc_erotionRate(Z_mj)
+        E_j = T2.calc_erotionRate(Z_mj)*v_sjSTAR
+
+        # Calculate f_sj: f_sj > 0 => Deposition. f_sj < 0 => Erosion
+        f_sj = (D_j - self.Q_cbj*E_j)[1:-1,1:-1,:]
+
+        f_sj[np.logical_and(f_sj > 0, self.Q_th[1:-1,1:-1,None] == 0)] = 0
+        f_sj[np.logical_and(f_sj < 0, self.Q_d[1:-1,1:-1,None] == 0)] = 0
+        f_sj = np.where((self.dt * f_sj/((1-self.porosity)*self.Q_th[1:-1,1:-1, None])) >= 0.1*self.Q_cj[1:-1,1:-1,:],
+                        0.1*self.Q_cj[1:-1,1:-1,:]*(1-self.porosity)*self.Q_th[1:-1,1:-1, None]/self.dt, f_sj)
+        f_s = np.sum(f_sj, axis=2)
+        self.f_sj = f_sj
+        self.f_s = f_s
 
         # Use old values in equations!
-        oldQ_th = self.Q_th
-        oldQ_cj = self.Q_cj.copy()
         oldQ_d = self.Q_d.copy()
 
         # Rescale D_j and E_j to prevent too much material being moved
@@ -292,7 +301,7 @@ class Hexgrid():
         # IF Q_cj = 1 increase the deposition rate D_j to compensate?
         #         temp_delta_qa = T2.T2_calc_change_qd(self.dt,D_j,self.Q_cbj,E_j,self.porosity, oldQ_th, oldQ_cj)
 
-        #         D_j = np.where(self.Q_cj>=0.85, D_j*100,D_j) 
+        #         D_j = np.where(self.Q_cj>=0.85, D_j*100,D_j)
 
         # DEBUGGING!
         self.Erosionrate.append(np.amax(E_j.flatten()))
@@ -301,14 +310,17 @@ class Hexgrid():
 
         self.Q_a[1:-1, 1:-1] += self.dt*f_s/(1-self.porosity)
         self.Q_d[1:-1, 1:-1] += self.dt*f_s/(1-self.porosity)
-        # self.Q_cj[1:-1, 1:-1, :] -= np.round(np.nan_to_num(self.dt*f_sj/((1-self.porosity)*self.Q_th[1:-1,1:-1, None])),16)
-        self.Q_cbj[1:-1, 1:-1, :] += np.nan_to_num(self.dt/((1-self.porosity) * oldQ_d[1:-1,1:-1, None]) *\
-                                     (f_sj - self.Q_cbj[1:-1,1:-1,:] * f_s[:,:,None]))
+        self.Q_cj[1:-1, 1:-1, :] -= np.round(np.nan_to_num(self.dt*f_sj/((1-self.porosity)*self.Q_th[1:-1,1:-1, None])),16)
+        self.Q_cbj[1:-1, 1:-1, :] += np.nan_to_num(self.dt/((1-self.porosity) * oldQ_d[1:-1,1:-1, None]) *
+                                                   (f_sj - self.Q_cbj[1:-1,1:-1,:] * f_s[:,:,None]))
 
         # Fail-safe
-        self.Q_cbj[self.Q_cbj > 1] = 1
-        self.Q_cj[self.Q_cj < 0] = 0
-        # self.Q_th[np.sum(self.Q_cj,axis=2) == 0] = 0 # Cant have thickness if no concentration...
+        # self.Q_cbj[self.Q_cbj > 1] = 1
+        # self.Q_cbj[self.Q_cbj < 0] = 0
+        # self.Q_cj[self.Q_cj < 0] = 0
+        # if np.any( self.Q_th[np.sum(self.Q_cj,axis=2) == 0] > 0 ):
+        #     raise Exception("Concentration set to 0 in cell with nonzero thickness!")
+        self.Q_th[np.sum(self.Q_cj,axis=2) == 0] = 0 # Cant have thickness if no concentration...
 
 
 
@@ -426,40 +438,24 @@ class Hexgrid():
 
     def I_2(self):
         '''Update thickness and concentration. IN: Q_th,Q_cj,Q_o. OUT: Q_th,Q_cj'''
-        # s = np.ndarray(Ny-2,Nx-2)
-        # term1 = np.ndarray(Ny-2,Nx-2,Nj)
-        # term2 = np.ndarray(Ny-2,Nx-2,Nj)
         outflowNo = np.array([3, 4, 5, 0, 1, 2])  # Used to find "inflow" to cell from neighbors
         s = np.zeros((self.Ny - 2, self.Nx - 2))
-        #         term1 =np.zeros((self.Ny-2,self.Nx-2,self.Nj))
         term2 = np.zeros((self.Ny - 2, self.Nx - 2, self.Nj))
         for i in range(6):
             inn = (self.Q_o[self.NEIGHBOR[i] + (outflowNo[i],)])
             out = self.Q_o[1:-1, 1:-1, i]
             s += (inn - out)
-        eps = 1e-13
         newq_th = self.Q_th[1:-1, 1:-1] + np.nan_to_num(s)
-        newq_th[newq_th < eps] = 0
         term1 = ((self.Q_th - np.sum(self.Q_o, axis=2))[:, :, np.newaxis] * self.Q_cj)[1:-1, 1:-1, :]
-        #         print("[q_th-sum(q_o(0,i),i)]*q_cj(0)=",((self.Q_th-np.sum(self.Q_o,axis=2))[:,:,np.newaxis]*self.Q_cj)[1:-1,1:-1,:])
-        #         print("term1.shape=",term1.shape)
         for j in range(self.Nj):
             for i in range(6):
                 term2[:, :, j] += self.Q_o[self.NEIGHBOR[i] + (outflowNo[i],)] * self.Q_cj[self.NEIGHBOR[i] + (j,)]
-        #         print("term2.shape=",term2.shape)
         with np.errstate(invalid='ignore'):
             newq_cj = (term1 + term2) / newq_th[:, :, np.newaxis]
         newq_cj[np.isinf(newq_cj)] = 0
-        #         print("newq_th.shape=",newq_th.shape)
-        #         print("newq_cj.shape=",newq_cj.shape)
-
-        #         print("I_2: Q_cj =\n", self.Q_cj)
-        if (np.nan_to_num(newq_cj).sum() - self.Q_cj.sum() > 1e+03):
-            print("break")
         self.Q_th[1:-1, 1:-1] = np.round(np.nan_to_num(newq_th),15)
         self.Q_cj[1:-1, 1:-1, :] = np.round(np.nan_to_num(newq_cj),15)
 
-    #         print("I_2: Q_cj =\n", self.Q_cj)
 
     def I_3(self, DEBUG = None):  # Should be done
         '''

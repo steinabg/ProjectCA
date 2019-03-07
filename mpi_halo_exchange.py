@@ -487,7 +487,7 @@ if __name__ == "__main__":
     # print("my rank = {0}, my_mpi_col = {1}, my_mpi_row = {2}".format(my_rank, my_mpi_col,my_mpi_row))
     # if my_rank == 0: print("p_xdims = {0}, p_y_dims = {1}".format(p_x_dims,p_y_dims))
 
-    def set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims):
+    def set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims, local_bathy, parameters):
         if my_mpi_col == 0:
             p_local_hexgrid.grid.Q_d[:,0] = np.inf
             p_local_hexgrid.grid.Q_a[:,0] = np.inf
@@ -496,13 +496,13 @@ if __name__ == "__main__":
             p_local_hexgrid.grid.Q_a[0,:] = np.inf
         if my_mpi_row == (p_y_dims-1):
             # print("mympirow == p_ydims. myrank = ", my_rank)
-            p_local_hexgrid.grid.Q_d[-1,:] = np.inf
-            p_local_hexgrid.grid.Q_a[-1,:] = np.inf
+            p_local_hexgrid.grid.Q_d[-1,:] = parameters['q_d[interior]']
+            p_local_hexgrid.grid.Q_a[-1,1:-1] = local_bathy[-1,:] + parameters['q_d[interior]']
         if my_mpi_col == (p_x_dims-1):
             # print("mympicol == p_xdims. myrank = ", my_rank)
             p_local_hexgrid.grid.Q_d[:,-1] = np.inf
             p_local_hexgrid.grid.Q_a[:,-1] = np.inf
-    set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims)
+    set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims, local_bathy, parameters)
     p_local_hexgrid.grid.my_rank = my_rank
 
     # print("my rank = {0}\n my local Q_d = \n{1}".format(my_rank,p_local_hexgrid.grid.Q_d))
@@ -571,7 +571,7 @@ if __name__ == "__main__":
         exchange_borders_matrix(p_local_hexgrid.grid.Q_d)
         exchange_borders_matrix(p_local_hexgrid.grid.Q_a)
         exchange_borders_cube(p_local_hexgrid.grid.Q_o, 6)
-        set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims)
+        set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims, local_bathy, parameters)
 
 
         # Calculate time step and set common dt in all local grids
@@ -592,33 +592,33 @@ if __name__ == "__main__":
         p_local_hexgrid.grid.sanityCheck()
         exchange_borders_cube(p_local_hexgrid.grid.Q_cj, parameters['nj'])
         exchange_borders_matrix(p_local_hexgrid.grid.Q_th)
-        set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims)
+        set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims, local_bathy, parameters)
         p_local_hexgrid.grid.T_2()
         p_local_hexgrid.grid.sanityCheck()
         exchange_borders_matrix(p_local_hexgrid.grid.Q_d)
         exchange_borders_matrix(p_local_hexgrid.grid.Q_a)
         exchange_borders_cube(p_local_hexgrid.grid.Q_cbj, parameters['nj'])
         exchange_borders_cube(p_local_hexgrid.grid.Q_cj, parameters['nj'])
-        set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims)
+        set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims, local_bathy, parameters)
         p_local_hexgrid.grid.I_1()
         p_local_hexgrid.grid.sanityCheck()
         exchange_borders_cube(p_local_hexgrid.grid.Q_o, 6)
-        set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims)
+        set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims, local_bathy, parameters)
         p_local_hexgrid.grid.I_2()
         p_local_hexgrid.grid.sanityCheck()
         exchange_borders_matrix(p_local_hexgrid.grid.Q_th)
         exchange_borders_cube(p_local_hexgrid.grid.Q_cj, parameters['nj'])
-        set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims)
+        set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims, local_bathy, parameters)
         p_local_hexgrid.grid.I_3()
         p_local_hexgrid.grid.sanityCheck()
         exchange_borders_matrix(p_local_hexgrid.grid.Q_v)
-        set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims)
+        set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims, local_bathy, parameters)
         p_local_hexgrid.grid.I_4()
         p_local_hexgrid.grid.sanityCheck()
         exchange_borders_matrix(p_local_hexgrid.grid.Q_d)
         exchange_borders_matrix(p_local_hexgrid.grid.Q_a)
         exchange_borders_cube(p_local_hexgrid.grid.Q_cbj, parameters['nj'])
-        set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims)
+        set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims, local_bathy, parameters)
 
         # Debugging
         # image_Q_th = gather_grid(p_local_hexgrid.grid.Q_th)
