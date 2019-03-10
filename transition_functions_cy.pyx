@@ -2,6 +2,10 @@ import numpy as np
 import T1functions as T1
 import T2functions as T2
 import mathfunk as ma
+cimport cython
+from libc.stdlib cimport calloc
+from libc.math cimport sqrt as csqrt
+from libc.math cimport atan as carctan
 
 def T_1(Nj, Q_cj, rho_j, rho_a, Q_th, Q_v, dt, g,  DEBUG=None):  # Water entrainment. IN: Q_a,Q_th,Q_cj,Q_v. OUT: Q_vj,Q_th
     '''
@@ -95,183 +99,70 @@ def T_2(rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th, Q_d, dt, p
     return Q_a, Q_d, Q_cj, Q_cbj
 
 
-def I_1(Q_th, Nj, Q_cj, rho_j, rho_a, Q_v, Q_a, Ny, Nx, dx, p_f, NEIGHBOR, p_adh, dt, Q_o, indexMat, DEBUG=None):
+
+cpdef I_1(double[:,:] Q_th, Nj, Q_cj,double rho_j,double rho_a,double[:,:] Q_v,double[:,:] Q_a,
+        int Ny,int Nx,double dx,double p_f, NEIGHBOR,double p_adh,double dt,double[:,:,:] Q_o, indexMat,g, DEBUG=None):
     '''
     This function calculates the turbidity current outflows.\
     IN: Q_a,Q_th,Q_v,Q_cj. OUT: Q_o
     p_f = np.deg2rad(1) # Height threshold friction angle
 
     '''
-    eligableCells = Q_th[1:-1, 1:-1] > 0
-    # Step (i): angles beta_i
-    g_prime = ma.calc_g_prime(Nj, Q_cj, rho_j, rho_a)
-    if DEBUG is True:
-        g_prime[:,:] = 1
-    # h_k = calc_BFroudeNo(g_prime)
-    g = g_prime.copy()
-    g[g == 0] = np.inf
-    h_k = 0.5 * Q_v ** 2 / g
-    r = Q_th + h_k
-    #         print("run up height = \n", r)
-    central_cell_height = (Q_a + r)[1:-1, 1:-1]
-    q_i = (Q_a + Q_th)
-    delta = np.zeros((Ny - 2, Nx - 2, 6))
-    delta[:, :, 0] = central_cell_height - q_i[0:Ny - 2, 1:Nx - 1]
-    delta[:, :, 1] = central_cell_height - q_i[0:Ny - 2, 2:Nx]
-    delta[:, :, 2] = central_cell_height - q_i[1:Ny - 1, 2:Nx]
-    delta[:, :, 3] = central_cell_height - q_i[2:Ny, 1:Nx - 1]
-    delta[:, :, 4] = central_cell_height - q_i[2:Ny, 0:Nx - 2]
-    delta[:, :, 5] = central_cell_height - q_i[1:Ny - 1, 0:Nx - 2]
-    delta[np.isinf(delta)] = 0  # q_i is inf at borders. delta = 0 => angle =0 => no transfer
-    # print("my rank = {0}\nmy delta[:,:,0]=\n{1}".format(my_rank,delta[:,:,0]))
+    nQ_o = np.zeros((Ny,Nx,6), dtype=np.double, order='C') # Reset outflow
+    cdef double [:,:,:] nQ_o_view = nQ_o
+    cdef int ii,jj,dir, nb_i, nb_j, zz
+    cdef double Average, r, h_k, g_prime, height_center, *nb_h, *f, factor_n, factor_r, sum_nb_h_in_A
+    nb_index = [[-1,0],[-1,1],[0,1],[1,0],[1,-1],[0,-1]]
+    # cdef int nb_index = {{-1,0},{-1,1},{0,1},{1,0},{1,-1},{0,-1}}
+    for ii in range(Ny):
+        for jj in range(Nx):
+            if (Q_th[ii,jj] > 0.0): # If cell has flow perform algorithm
+                g_prime = g*np.sum(Q_cj[ii,jj,:] * (rho_j - rho_a)/rho_a)
+                h_k = 0.5* Q_v[ii,jj]**2/g_prime
+                r = Q_th[ii,jj] + h_k
+                height_center = Q_a[ii,jj] + r
 
-    # debug_delta = np.zeros((6, Ny - 2, Nx - 2))
-    # for i in range(6):
-    #     debug_delta[i, :, :] = delta[:, :, i]
-    dx = dx
-    angle = np.arctan2(delta, dx)
-    # debug_angle = np.zeros((6, Ny - 2, Nx - 2))
-    # for i in range(6):
-    #     debug_angle[i, :, :] = angle[:, :, i]
-    #         print("angle =\n", np.rad2deg(angle))
-    indices = angle > p_f  # indices(Ny,Nx,6). Dette er basically set A.
-    indices *= eligableCells[:, :, np.newaxis]
-    #         print("indices\n",indices)
-    # debug_indices = np.zeros((6, Ny - 2, Nx - 2))
-    # for i in range(6):
-    #     debug_indices[i, :, :] = indices[:, :, i]
+                A = [0,1,2,3,4,5]
+                # nb_h = []
+                nb_h = <double*> calloc(6,sizeof(double))
 
-    # Average, indices = I_1_doubleforloop(indices, q_i, r, Ny, Nx, p_adh, indexMat) # numba function
-    for ii in range(6):  # Step (iii) says to go back to step (ii) if a cell is removed.
-        NumberOfCellsInA = np.sum(indices, axis=2)  # Cardinality of set A
-        #             print("NumberOfCellsInA =\n",NumberOfCellsInA)
+                for dir in range(6):
+                    nb_i = ii + nb_index[dir][0]
+                    nb_j = jj + nb_index[dir][1]
 
-        # Step (ii) calculate average
-        neighborValues = np.zeros((Ny - 2, Nx - 2))
-        #         print("neighbors=\n", NEIGHBOR[0])
-        for i in range(6):
-            q_i_nb = q_i[NEIGHBOR[i]]
-            with np.errstate(invalid='ignore'):
-                indices_for_ne = indices[:, :, i]
-                neighborValues_thread = q_i_nb * indices_for_ne
-                # neighborValues_thread = vectorMultiply(q_i_nb, indices_for_ne)
-                neighborValues_thread[np.isnan(neighborValues_thread)] = 0
-                neighborValues += neighborValues_thread
-                # neighborValues += np.nan_to_num(q_i_nb * indices[:, :,i])
-                # Vi vil bare legge til verdier hvor angle>p_f
-        #             print("neighborValues=\n", neighborValues)
-        p = (r - p_adh)[1:-1, 1:-1]
-        # p[p<0]=0
-        with np.errstate(divide='ignore', invalid='ignore'):
-            Average = (p + neighborValues) / NumberOfCellsInA
-        Average[np.isinf(Average)] = 0  # for når NumberOfCellsInA =0
-        Average[np.isnan(Average)] = 0
-        #             print("Average=\n", Average)
-        #             print("indices=\n", indices)
+                    # nb_h.append(Q_a[nb_i,nb_j] + Q_th[nb_i,nb_j])
+                    nb_h[dir] = Q_a[nb_i,nb_j] + Q_th[nb_i,nb_j]
+                    if (carctan((height_center - nb_h[-1])/dx) < p_f):
+                        del A[dir - (6-len(A))]
 
-        # Step (iii) Eliminate adjacent cells i with q_i >= Average from A.
-        for i in range(6):  # Skal sette posisjoner (j) hvor q_i (til nabocelle) > average (i celle j) til 0
-            nb = q_i[NEIGHBOR[i]]
-            itemp = (nb >= Average)
-            indices[itemp, i] = 0
+                eliminated = True
+                Average = 0.0
+                while eliminated and len(A) > 0:
+                    eliminated = False
+                    sum_nb_h_in_A = 0
+                    for dir in A:
+                        sum_nb_h_in_A += nb_h[dir]
+                    Average = ( (r-p_adh) + sum_nb_h_in_A) / len(A)
 
-    # Step (iv)
-    Average[np.isinf(Average)] = 0
-    nonNormalizedOutFlow = np.ones((Average.shape + (6,))) * Average[:, :, np.newaxis]
-    for i in range(6):
-        with np.errstate(invalid='ignore'):
-            nonNormalizedOutFlow[:, :, i] -= np.nan_to_num(q_i[NEIGHBOR[i]] * indices[:, :, i])
-    nonNormalizedOutFlow *= indices
-    # Step (v)
-    with np.errstate(divide='ignore', invalid='ignore'):
-        normalization = Q_th / r  # nu_nf
-        normalization[np.isnan(normalization)] = 0
-    #         print("normalization=\n", normalization)
-    with np.errstate(invalid='ignore'):
-        relaxation = np.sqrt(2 * r * g_prime) * dt / (dx/2) # dx is intercellular distance. apothem is used in Salles.
-        relaxation[relaxation >0.8] = 0.8 # Demper outflow litt
-    if np.any(relaxation > 1) or np.any(relaxation < 0): # D'Ambrosio demand
-        raise Exception("Warning! I_1 Relaxation > 1!")
+                    A_copy = A.copy()
+                    for index, dir in enumerate(A):
+                        if(nb_h[dir] >= Average):
+                            del A_copy[index - (len(A) - len(A_copy))]
+                            eliminated = True
+                    A = A_copy.copy()
 
-    factor = (normalization * relaxation)[1:-1, 1:-1]
-    Q_o[1:-1, 1:-1,:] = np.round(np.nan_to_num(factor[:,:,None] * nonNormalizedOutFlow), 15)
+                # f = np.zeros((6),dtype=np.double, order='C')
+                f = <double*> calloc(6,sizeof(double))
+                factor_n = Q_th[ii,jj]/r
+                factor_r = csqrt(2*r*g_prime)*dt/(dx/2)
 
+                for zz in range(len(A)):
+                    dir = A[zz]
+                    f[dir] = Average - nb_h[dir]
+                    nQ_o_view[ii,jj,dir] = f[dir] * factor_n * factor_r
 
-    if ((np.sum(Q_o, axis=2) > Q_th)[1:-1,1:-1].sum() > 0):
-        ii, jj = np.where(np.sum(Q_o,axis=2)>Q_th)
-        s = ''.join("\nsum(Q_o[%i,%i]) = %.10f > Q_th = %.10f\n" % (ii[x],jj[x],sum(Q_o[ii[x],jj[x]]),Q_th[ii[x],jj[x]]) for x in range(len(ii)))
-        s = s + ''.join("Relaxation = %03f, Normalization = %03f\n" %(relaxation[ii[x],jj[x]], normalization[ii[x],jj[x]]) for x in range(len(ii)))
-        raise Exception("I_1 warning! More outflow Q_o than thickness Q_th!" + s)
+    return nQ_o
 
-    return Q_o
-
-cdef I_1_doubleforloop(indices, q_i, r,int Ny, int Nx,double p_adh, neighborIndexMat):
-        cdef int ii, jj, mm, j, k, i, x, y
-
-        for ii in range(6):  # Step (iii) says to go back to step (ii) if a cell is removed.
-            NumberOfCellsInA = np.sum(indices, axis=2)  # Cardinality of set A
-            neighborValues = np.zeros((Ny - 2, Nx - 2))
-            q_i_nb = np.zeros((Ny - 2, Nx - 2, 6))
-            for i in range(6):
-
-                x = 0
-                y = 0
-                # if (ii == 0) and (i == 0):
-                #     print(neighborIndexMat[:,:,0])
-                for jj in range(Ny):
-                    # if (ii == 0) and (i == 0):
-                    #     print(q_i_nb)
-                    for mm in range(Nx):
-                        # if (ii == 0) and (i==0):
-                        #     print(jj,mm)
-                        if (neighborIndexMat[jj,mm,i] == 1):
-
-                            q_i_nb[y,x,i] = q_i[jj,mm] # Build matrix
-
-                            # if (ii == 0) and (i == 0):
-                            #     print("q_i_nb[",y,",",x,"] = q_i[",jj,",",mm,"] = ", q_i[jj,mm])
-
-                            if ((mm < Nx-1)):
-                                if (neighborIndexMat[jj,mm,i] == 1) and (neighborIndexMat[jj,mm+1,i] == 0):
-                                    y = y + 1
-                                    x = 0
-                                else:
-                                    x += 1
-                            elif(mm >= Nx-1):
-                                y = y + 1
-                                x = 0
-                            else:
-                                x += 1
-
-                # if(i ==0) and (ii==0): print(q_i_nb)
-                # q_i_nb = q_i[neighborIndexMat[:,:,i]]
-
-                indices_for_ne = indices[:, :, i]
-                neighborValues_thread = q_i_nb[:,:,i] * indices_for_ne
-                for jj in range(Ny-2):
-                    for mm in range(Nx-2):
-                        if np.isnan(neighborValues_thread[jj,mm]):
-                            neighborValues_thread[jj,mm] = 0
-                # neighborValues_thread[np.isnan(neighborValues_thread)] = 0
-                neighborValues += neighborValues_thread
-            p = (r - p_adh)[1:-1, 1:-1]
-            Average = (p + neighborValues) / NumberOfCellsInA
-            for jj in range(Ny-2):
-                for mm in range(Nx-2):
-                    if (np.isinf(Average[jj,mm])) or (np.isnan(Average[jj,mm])):
-                        Average[jj,mm] = 0
-            # Average[np.isinf(Average)] = 0  # for når NumberOfCellsInA =0
-            # Average[np.isnan(Average)] = 0
-            # Step (iii) Eliminate adjacent cells i with q_i >= Average from A.
-            for j in range(Ny-2):
-                for k in range(Nx-2):
-                    for i in range(6):
-                        if (q_i_nb[j,k,i] >= Average[j,k]):
-                            indices[j,k,i] = 0
-
-
-
-        return Average, indices
 
 def I_2(Ny,Nx, Nj, Q_o, NEIGHBOR, Q_th, Q_cj):
     '''Update thickness and concentration. IN: Q_th,Q_cj,Q_o. OUT: Q_th,Q_cj'''
