@@ -95,7 +95,8 @@ def T_2(rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th, Q_d, dt, p
     return Q_a, Q_d, Q_cj, Q_cbj
 
 
-def I_1(Q_th, Nj, Q_cj, rho_j, rho_a, Q_v, Q_a, Ny, Nx, dx, p_f, NEIGHBOR, p_adh, dt, Q_o, indexMat,g, DEBUG=None):
+def I_1(Q_th, Nj, Q_cj, rho_j, rho_a, Q_v, Q_a,
+         Ny, Nx, dx, p_f, NEIGHBOR, p_adh, dt, Q_o,  g, DEBUG=None):
     '''
     This function calculates the turbidity current outflows.\
     IN: Q_a,Q_th,Q_v,Q_cj. OUT: Q_o

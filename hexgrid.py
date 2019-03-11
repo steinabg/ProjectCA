@@ -139,7 +139,7 @@ class Hexgrid():
         # self.printSubstates_to_screen('T_2')
         # Turbidity c. outflows
         self.Q_o = tra.I_1(self.Q_th, self.Nj, self.Q_cj, self.rho_j, self.rho_a, self.Q_v, self.Q_a, self.Ny, self.Nx,
-                           self.dx, self.p_f, self.NEIGHBOR, self.p_adh, self.dt, self.Q_o, self.indexMat, self.g)
+                           self.dx, self.p_f, self.NEIGHBOR, self.p_adh, self.dt, self.Q_o, self.g)
         self.sanityCheck()
         # self.printSubstates_to_screen('I_1')
         # Update thickness and concentration

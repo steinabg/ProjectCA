@@ -101,7 +101,7 @@ def T_2(rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th, Q_d, dt, p
 
 
 cpdef I_1(double[:,:] Q_th, Nj, Q_cj,double rho_j,double rho_a,double[:,:] Q_v,double[:,:] Q_a,
-        int Ny,int Nx,double dx,double p_f, NEIGHBOR,double p_adh,double dt,double[:,:,:] Q_o, indexMat,g, DEBUG=None):
+        int Ny,int Nx,double dx,double p_f, NEIGHBOR,double p_adh,double dt,double[:,:,:] Q_o, double g, DEBUG=None):
     '''
     This function calculates the turbidity current outflows.\
     IN: Q_a,Q_th,Q_v,Q_cj. OUT: Q_o
@@ -110,7 +110,8 @@ cpdef I_1(double[:,:] Q_th, Nj, Q_cj,double rho_j,double rho_a,double[:,:] Q_v,d
     '''
     nQ_o = np.zeros((Ny,Nx,6), dtype=np.double, order='C') # Reset outflow
     cdef double [:,:,:] nQ_o_view = nQ_o
-    cdef int ii,jj,dir, nb_i, nb_j, zz
+    cdef int ii,jj,dir, nb_i, nb_j, zz, index
+    cdef list
     cdef double Average, r, h_k, g_prime, height_center, *nb_h, *f, factor_n, factor_r, sum_nb_h_in_A
     nb_index = [[-1,0],[-1,1],[0,1],[1,0],[1,-1],[0,-1]]
     # cdef int nb_index = {{-1,0},{-1,1},{0,1},{1,0},{1,-1},{0,-1}}
@@ -123,6 +124,7 @@ cpdef I_1(double[:,:] Q_th, Nj, Q_cj,double rho_j,double rho_a,double[:,:] Q_v,d
                 height_center = Q_a[ii,jj] + r
 
                 A = [0,1,2,3,4,5]
+
                 # nb_h = []
                 nb_h = <double*> calloc(6,sizeof(double))
 
@@ -132,7 +134,7 @@ cpdef I_1(double[:,:] Q_th, Nj, Q_cj,double rho_j,double rho_a,double[:,:] Q_v,d
 
                     # nb_h.append(Q_a[nb_i,nb_j] + Q_th[nb_i,nb_j])
                     nb_h[dir] = Q_a[nb_i,nb_j] + Q_th[nb_i,nb_j]
-                    if (carctan((height_center - nb_h[-1])/dx) < p_f):
+                    if (carctan((height_center - nb_h[dir])/dx) < p_f):
                         del A[dir - (6-len(A))]
 
                 eliminated = True
@@ -140,12 +142,14 @@ cpdef I_1(double[:,:] Q_th, Nj, Q_cj,double rho_j,double rho_a,double[:,:] Q_v,d
                 while eliminated and len(A) > 0:
                     eliminated = False
                     sum_nb_h_in_A = 0
-                    for dir in A:
+                    for zz in range(len(A)):
+                        dir = A[zz]
                         sum_nb_h_in_A += nb_h[dir]
                     Average = ( (r-p_adh) + sum_nb_h_in_A) / len(A)
 
                     A_copy = A.copy()
-                    for index, dir in enumerate(A):
+                    for index in range(len(A)):
+                        dir = A[index]
                         if(nb_h[dir] >= Average):
                             del A_copy[index - (len(A) - len(A_copy))]
                             eliminated = True
