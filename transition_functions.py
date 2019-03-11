@@ -3,7 +3,9 @@ import T1functions as T1
 import T2functions as T2
 import mathfunk as ma
 
-def T_1(Ny,Nx,Nj, Q_cj, rho_j, rho_a, Q_th, Q_v, dt, g,  DEBUG=None):  # Water entrainment. IN: Q_a,Q_th,Q_cj,Q_v. OUT: Q_vj,Q_th
+
+def T_1(Ny, Nx, Nj, Q_cj, rho_j, rho_a, Q_th, Q_v, dt, g,
+        DEBUG=None):  # Water entrainment. IN: Q_a,Q_th,Q_cj,Q_v. OUT: Q_vj,Q_th
     '''
     This function calculates the water entrainment.\
     Entrainment is the transport of fluid across an interface\
@@ -11,116 +13,126 @@ def T_1(Ny,Nx,Nj, Q_cj, rho_j, rho_a, Q_th, Q_v, dt, g,  DEBUG=None):  # Water e
     I.e. the 'mixing' of two fluids across their interface. \
 
     '''
-    nQ_th = np.zeros((Ny,Nx),dtype=np.double,order='C')
-    nQ_cj = np.zeros((Ny,Nx,Nj),dtype=np.double,order='C')
+    nQ_th = np.zeros((Ny, Nx), dtype=np.double, order='C')
+    nQ_cj = np.zeros((Ny, Nx, Nj), dtype=np.double, order='C')
     for ii in range(Ny):
         for jj in range(Nx):
-            if(Q_th[ii,jj] > 0):
+            if (Q_th[ii, jj] > 0):
                 g_prime = 0
                 for zz in range(Nj):
-                    g_prime += g*(Q_cj[ii,jj,zz] * (rho_j[zz] - rho_a)/rho_a)
-                Ri_number = g_prime*Q_th[ii,jj]/(Q_v[ii,jj] * Q_v[ii,jj])
-                dimless_entrainment_rate = 0.075 / np.sqrt(1 + 718 * (Ri_number)**(2.4))
-                entrainment_rate = Q_v[ii,jj]*dimless_entrainment_rate
+                    g_prime += g * (Q_cj[ii, jj, zz] * (rho_j[zz] - rho_a) / rho_a)
+                Ri_number = g_prime * Q_th[ii, jj] / (Q_v[ii, jj] * Q_v[ii, jj])
+                dimless_entrainment_rate = 0.075 / np.sqrt(1 + 718 * (Ri_number) ** (2.4))
+                entrainment_rate = Q_v[ii, jj] * dimless_entrainment_rate
 
-                nQ_th[ii,jj] = Q_th[ii,jj] + entrainment_rate * dt
+                nQ_th[ii, jj] = Q_th[ii, jj] + entrainment_rate * dt
                 for zz in range(Nj):
-                    nQ_cj[ii,jj,zz] = Q_cj[ii,jj,zz] * Q_th[ii,jj] / nQ_th[ii,jj]
-
+                    nQ_cj[ii, jj, zz] = Q_cj[ii, jj, zz] * Q_th[ii, jj] / nQ_th[ii, jj]
 
     return nQ_cj, nQ_th
 
 
-def T_2(rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th, Q_d, dt, porosity, Q_a, Erosionrate, Depositionrate):
+def T_2(Ny, Nx, Nj, rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th, Q_d, dt, porosity, Q_a):
     '''
     This function updates Q_a,Q_d,Q_cj and Q_cbj. According to erosion and deposition rules.\
     IN: Q_a,Q_th,Q_cj,Q_cbj,Q_v. OUT:
     '''
 
-    R_pj = T2.calc_Rpj(rho_j, rho_a, D_sj, nu, g=g)  # Assume rho = rho_ambient.
-    f = T2.calc_fofR(R_pj)
-    kappa = T2.calc_kappa(D_sj)
-    Ustar = T2.calc_Ustar(c_D, Q_v)
-    v_sjSTAR = v_sj**3 * rho_a / ((rho_j - rho_a) * g * nu) # Eq. (5) Dietrich
-    D_sg = T2.calc_averageSedimentSize(Q_cj, D_sj)
-    c_nbj = T2.calc_nearBedConcentration_SusSed(D_sj, D_sg, Q_cj)
+    nQ_a = np.zeros((Ny, Nx), dtype=np.double, order='C')
+    nQ_d = np.zeros((Ny, Nx), dtype=np.double, order='C')
+    nQ_cj = np.zeros((Ny, Nx, Nj), dtype=np.double, order='C')
+    nQ_cbj = np.zeros((Ny, Nx, Nj), dtype=np.double, order='C')
+    for ii in range(Ny):
+        for jj in range(Nx):
+            if (Q_th[ii, jj] > 0):
+                # Deposition initialization:
+                sediment_mean_size = 1
+                sum_q_cj = 0
 
-    D_j = np.nan_to_num(T2.calc_depositionRate(v_sjSTAR, c_nbj))
-    Z_mj = T2.calc_Z_mj(kappa, Ustar, v_sjSTAR, f)
-    E_j = T2.calc_erotionRate(Z_mj)*v_sjSTAR
+                # Erosion initialization:
+                log_2_D_sj = np.zeros((Nj), dtype=np.double, order='C')
 
-    # Calculate f_sj: f_sj > 0 => Deposition. f_sj < 0 => Erosion
-    f_sj = (D_j - Q_cbj*E_j)[1:-1,1:-1,:]
+                for kk in range(Nj):
+                    # Deposition part:
+                    sum_q_cj += Q_cj[ii, jj, kk]
+                    sediment_mean_size *= Q_cj[ii, jj, kk] * D_sj[kk]
 
-    f_sj[np.logical_and(f_sj > 0, Q_th[1:-1,1:-1,None] == 0)] = 0
-    f_sj[np.logical_and(f_sj < 0, Q_d[1:-1,1:-1,None] == 0)] = 0
-    f_sj = np.where((dt * f_sj/((1-porosity)*Q_th[1:-1,1:-1, None])) >= 0.1*Q_cj[1:-1,1:-1,:],
-                    0.1*Q_cj[1:-1,1:-1,:]*(1-porosity)*Q_th[1:-1,1:-1, None]/dt, f_sj)
-    f_s = np.sum(f_sj, axis=2)
-    f_sj = f_sj
-    f_s = f_s
+                    # Erosion part:
+                    log_2_D_sj[kk] = np.log2(D_sj)
 
-    # Use old values in equations!
-    oldQ_d = Q_d.copy()
+                kappa = 1 - 0.288 * np.std(log_2_D_sj)
+                sediment_mean_size = sediment_mean_size ** (1 / Nj) / sum_q_cj
+                f_sj = np.zeros((Nj), dtype=np.double, order='C')
+                f_sj_sum = 0
 
-    # Rescale D_j and E_j to prevent too much material being moved
-    # D_j, E_j = T2.rescale_Dj_E_j(D_j, dt, porosity, Q_th, Q_cj, p_adh, Q_cbj, E_j,
-    #                              Q_d)
+                for kk in range(Nj):
+                    # Deposition part:
+                    fall_velocity_dimless = v_sj[kk] ** (3) * rho_a / ((rho_j[kk] - rho_a) * g * nu)
+                    near_bed_c = Q_cj[ii, jj, kk] * (0.40 * (D_sj[kk] / sediment_mean_size) ** (1.64) + 1.64)
+                    deposition_rate = fall_velocity_dimless * near_bed_c
 
-    # IF Q_cj = 1 increase the deposition rate D_j to compensate?
-    #         temp_delta_qa = T2.T2_calc_change_qd(dt,D_j,Q_cbj,E_j,porosity, oldQ_th, oldQ_cj)
+                    # Erosion part:
+                    particle_reynolds = np.sqrt(g * (rho_j[kk] - rho_a) * D_sj[kk] / rho_a) * D_sj[kk] / nu
+                    if (particle_reynolds >= 3.5):
+                        function_reynolds = particle_reynolds ** (0.6)
+                    elif (particle_reynolds > 1) and (particle_reynolds < 3.5):
+                        function_reynolds = 0.586 * particle_reynolds ** (1.23)
+                    else:
+                        raise Exception('Eq. (40) (Salles) not defined for R_pj = {0}'.format(particle_reynolds))
+                    Z_mj = kappa * np.sqrt(c_D * Q_v[ii, jj]) * function_reynolds / fall_velocity_dimless
+                    erosion_rate = (1.3 * 10 ** (-7) * Z_mj ** (5)) / (1 + 4.3 * 10 ** (-7) * Z_mj ** (5))
 
-    #         D_j = np.where(Q_cj>=0.85, D_j*100,D_j)
+                    # Exner equation:
+                    f_sj[kk] = deposition_rate - erosion_rate * Q_cbj[ii, jj, kk] * fall_velocity_dimless
+                    f_sj_sum += f_sj[kk]
 
-    # DEBUGGING!
-    Erosionrate.append(np.amax(E_j.flatten()))
-    Depositionrate.append(np.amax(D_j.flatten()))
-    #######
+                nQ_a[ii, jj] = Q_a[ii, jj] + dt / (1 - porosity) * f_sj_sum
+                nQ_d[ii, jj] = Q_d[ii, jj] + dt / (1 - porosity) * f_sj_sum
 
-    Q_a[1:-1, 1:-1] += dt*f_s/(1-porosity)
-    Q_d[1:-1, 1:-1] += dt*f_s/(1-porosity)
-    Q_cj[1:-1, 1:-1, :] -= np.round(np.nan_to_num(dt*f_sj/((1-porosity)*Q_th[1:-1,1:-1, None])),16)
-    Q_cbj[1:-1, 1:-1, :] += np.nan_to_num(dt/((1-porosity) * oldQ_d[1:-1,1:-1, None]) *
-                                               (f_sj - Q_cbj[1:-1,1:-1,:] * f_s[:,:,None]))
+                for kk in range(Nj):
+                    nQ_cj[ii, jj, kk] = Q_cj[ii, jj] - dt / ((1 - porosity) * Q_th[ii, jj]) * f_sj[kk]
+                    nQ_cbj[ii, jj, kk] = Q_cbj[ii, jj, kk] + dt / ((1 - porosity) * Q_d[ii, jj]) * \
+                                         (f_sj[kk] - Q_cbj[ii, jj, kk] * f_sj_sum)
 
-    # Fail-safe
-    # Q_cbj[Q_cbj > 1] = 1
-    # Q_cbj[Q_cbj < 0] = 0
-    # Q_cj[Q_cj < 0] = 0
-    # if np.any( Q_th[np.sum(Q_cj,axis=2) == 0] > 0 ):
-    #     raise Exception("Concentration set to 0 in cell with nonzero thickness!")
-    Q_th[np.sum(Q_cj,axis=2) == 0] = 0 # Cant have thickness if no concentration...
-    return Q_a, Q_d, Q_cj, Q_cbj
+
+            else:
+                nQ_a[ii, jj] = Q_a[ii, jj]
+                nQ_d[ii, jj] = Q_d[ii, jj]
+                for kk in range(Nj):
+                    nQ_cj[ii, jj, kk] = Q_cj[ii, jj, kk]
+                    nQ_cbj[ii, jj, kk] = Q_cbj[ii, jj, kk]
+
+    return nQ_a, nQ_d, nQ_cj, nQ_cbj
 
 
 def I_1(Q_th, Nj, Q_cj, rho_j, rho_a, Q_v, Q_a,
-         Ny, Nx, dx, p_f, NEIGHBOR, p_adh, dt, Q_o,  g, DEBUG=None):
+        Ny, Nx, dx, p_f, NEIGHBOR, p_adh, dt, Q_o, g, DEBUG=None):
     '''
     This function calculates the turbidity current outflows.\
     IN: Q_a,Q_th,Q_v,Q_cj. OUT: Q_o
     p_f = np.deg2rad(1) # Height threshold friction angle
 
     '''
-    Q_o = np.zeros((Ny,Nx,6), dtype=np.double, order='C') # Reset outflow
+    Q_o = np.zeros((Ny, Nx, 6), dtype=np.double, order='C')  # Reset outflow
     for ii in range(Ny):
         for jj in range(Nx):
-            if (Q_th[ii,jj] > 0): # If cell has flow perform algorithm
-                g_prime = g*np.sum(Q_cj[ii,jj,:] * (rho_j - rho_a)/rho_a)
-                h_k = 0.5* Q_v[ii,jj]**2/g_prime
-                r = Q_th[ii,jj] + h_k
-                height_center = Q_a[ii,jj] + r
+            if (Q_th[ii, jj] > 0):  # If cell has flow perform algorithm
+                g_prime = g * np.sum(Q_cj[ii, jj, :] * (rho_j - rho_a) / rho_a)
+                h_k = 0.5 * Q_v[ii, jj] ** 2 / g_prime
+                r = Q_th[ii, jj] + h_k
+                height_center = Q_a[ii, jj] + r
 
-                A = [0,1,2,3,4,5]
+                A = [0, 1, 2, 3, 4, 5]
                 nb_h = []
 
-                nb_index = [[-1,0],[-1,1],[0,1],[1,0],[1,-1],[0,-1]]
+                nb_index = [[-1, 0], [-1, 1], [0, 1], [1, 0], [1, -1], [0, -1]]
                 for dir in range(6):
                     nb_i = ii + nb_index[dir][0]
                     nb_j = jj + nb_index[dir][1]
 
-                    nb_h.append(Q_a[nb_i,nb_j] + Q_th[nb_i,nb_j])
-                    if (np.arctan((height_center - nb_h[-1])/dx) < p_f):
-                        del A[dir - (6-len(A))]
+                    nb_h.append(Q_a[nb_i, nb_j] + Q_th[nb_i, nb_j])
+                    if (np.arctan((height_center - nb_h[-1]) / dx) < p_f):
+                        del A[dir - (6 - len(A))]
 
                 eliminated = True
                 Average = 0
@@ -129,27 +141,27 @@ def I_1(Q_th, Nj, Q_cj, rho_j, rho_a, Q_v, Q_a,
                     sum_nb_h_in_A = 0
                     for dir in A:
                         sum_nb_h_in_A += nb_h[dir]
-                    Average = ( (r-p_adh) + sum_nb_h_in_A) / len(A)
+                    Average = ((r - p_adh) + sum_nb_h_in_A) / len(A)
 
                     A_copy = A.copy()
                     for index, dir in enumerate(A):
-                        if(nb_h[dir] >= Average):
+                        if (nb_h[dir] >= Average):
                             del A_copy[index - (len(A) - len(A_copy))]
                             eliminated = True
                     A = A_copy.copy()
 
-                f = np.zeros((6),dtype=np.double, order='C')
-                factor_n = Q_th[ii,jj]/r
-                factor_r = np.sqrt(2*r*g_prime)*dt/(dx/2)
+                f = np.zeros((6), dtype=np.double, order='C')
+                factor_n = Q_th[ii, jj] / r
+                factor_r = np.sqrt(2 * r * g_prime) * dt / (dx / 2)
 
                 for dir in A:
                     f[dir] = Average - nb_h[dir]
-                    Q_o[ii,jj,dir] = f[dir] * factor_n * factor_r
+                    Q_o[ii, jj, dir] = f[dir] * factor_n * factor_r
 
     return Q_o
 
 
-def I_2(Ny,Nx, Nj, Q_o, NEIGHBOR, Q_th, Q_cj):
+def I_2(Ny, Nx, Nj, Q_o, NEIGHBOR, Q_th, Q_cj):
     '''Update thickness and concentration. IN: Q_th,Q_cj,Q_o. OUT: Q_th,Q_cj'''
     outflowNo = np.array([3, 4, 5, 0, 1, 2])  # Used to find "inflow" to cell from neighbors
     s = np.zeros((Ny - 2, Nx - 2))
@@ -166,11 +178,12 @@ def I_2(Ny,Nx, Nj, Q_o, NEIGHBOR, Q_th, Q_cj):
     with np.errstate(invalid='ignore'):
         newq_cj = (term1 + term2) / newq_th[:, :, np.newaxis]
     newq_cj[np.isinf(newq_cj)] = 0
-    Q_th[1:-1, 1:-1] = np.round(np.nan_to_num(newq_th),15)
-    Q_cj[1:-1, 1:-1, :] = np.round(np.nan_to_num(newq_cj),15)
+    Q_th[1:-1, 1:-1] = np.round(np.nan_to_num(newq_th), 15)
+    Q_cj[1:-1, 1:-1, :] = np.round(np.nan_to_num(newq_cj), 15)
     return Q_th, Q_cj
 
-def I_3(Nj, Q_cj, rho_j, rho_a, Ny, Nx, Q_a, Q_th, NEIGHBOR, Q_o, Q_v, f, a, DEBUG = None):  # Should be done
+
+def I_3(Nj, Q_cj, rho_j, rho_a, Ny, Nx, Q_a, Q_th, NEIGHBOR, Q_o, Q_v, f, a, DEBUG=None):  # Should be done
     '''
     Update of turbidity flow velocity (speed!). IN: Q_a,Q_th,Q_o,Q_cj. OUT: Q_v.
     '''
@@ -178,7 +191,7 @@ def I_3(Nj, Q_cj, rho_j, rho_a, Ny, Nx, Q_a, Q_th, NEIGHBOR, Q_o, Q_v, f, a, DEB
     # g_prime = np.ndarray(Ny,Nx)
     g_prime = ma.calc_g_prime(Nj, Q_cj, rho_j, rho_a)
     if DEBUG is True:
-        g_prime[:,:] = 1
+        g_prime[:, :] = 1
     #         print("Q_cj=\n",Q_cj)
     #         print("g_prime.shape=",g_prime.shape)
     #         print("Q_cj.shape=",Q_cj.shape)
@@ -204,13 +217,14 @@ def I_3(Nj, Q_cj, rho_j, rho_a, Ny, Nx, Q_a, Q_th, NEIGHBOR, Q_o, Q_v, f, a, DEB
     for i in range(6):
         comp1 = (8 * g_prime * sum_q_cj)[1:-1, 1:-1] / (f * (1 + a))
         comp2 = (Q_o[1:-1, 1:-1, i] * diff[:, :, i])
-        comp2[comp2<0] = 0 # TODO: Test om denne kan fjernes
+        comp2[comp2 < 0] = 0  # TODO: Test om denne kan fjernes
         with np.errstate(invalid='raise'):
             temp = np.sqrt(comp1 * comp2)
         U_k[:, :, i] = temp
     # #             print("U_k[:,:,i]=\n",U_k[:,:,i])
-    Q_v[1:-1, 1:-1] = np.round(np.nan_to_num(ma.average_speed_hexagon(U_k)),15)
+    Q_v[1:-1, 1:-1] = np.round(np.nan_to_num(ma.average_speed_hexagon(U_k)), 15)
     return Q_v
+
 
 def I_4(Q_d, Ny, Nx, dx, reposeAngle, Q_cbj, Q_a, seaBedDiff):  # Toppling rule
     # angle = np.zeros((Ny - 2, Ny - 2, 6))
@@ -231,10 +245,8 @@ def I_4(Q_d, Ny, Nx, dx, reposeAngle, Q_cbj, Q_a, seaBedDiff):  # Toppling rule
     diff[:, :, 4] = interiorH - old_height[2:Ny, 0:Nx - 2] + seaBedDiff[:, :, 4]
     diff[:, :, 5] = interiorH - old_height[1:Ny - 1, 0:Nx - 2] + seaBedDiff[:, :, 5]
 
-
-
     # Find angles
-    angle = np.arctan2(diff,dx)
+    angle = np.arctan2(diff, dx)
 
     # (Checks if cell (i,j) has angle > repose angle and that it has mass > 0. For all directions.)
     # Find cells (i,j) for which to transfer mass in the direction given
@@ -281,7 +293,7 @@ def I_4(Q_d, Ny, Nx, dx, reposeAngle, Q_cbj, Q_a, seaBedDiff):  # Toppling rule
     prefactor[np.isinf(prefactor)] = 0
     nq_cbj = np.nan_to_num(prefactor *
                            (oldQ_d[1:-1, 1:-1, np.newaxis] * Q_cbj[1:-1, 1:-1, :] + deltaSSum[:, :, None]))
-    nq_cbj = np.round(nq_cbj,15)
+    nq_cbj = np.round(nq_cbj, 15)
     Q_cbj[1:-1, 1:-1] = nq_cbj
     Q_cbj[Q_cbj < 1e-15] = 0
     if (Q_d < -1e-7).sum() > 0:

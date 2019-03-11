@@ -79,8 +79,8 @@ class Hexgrid():
         self.i = 0
         self.my_rank = 0
         self.unphysical_substate = {'Q_th': 0, 'Q_v': 0, 'Q_cj':0,'Q_cbj':0,'Q_d':0,'Q_o':0}
-        self.Erosionrate = []
-        self.Depositionrate = []
+        self.Erosionrate_sample = []
+        self.Depositionrate_sample = []
 
         self.find_channel_bot() # Find the indices of the channel minima in axial direction
 
@@ -131,10 +131,10 @@ class Hexgrid():
         self.sanityCheck()
         # self.printSubstates_to_screen('T_1')
         # Erosion and deposition TODO: Fix cause of instability
-        self.Q_a, self.Q_d, self.Q_cj, self.Q_cbj = tra.T_2(self.rho_j, self.rho_a, self.D_sj, self.nu, self.g,
+        self.Q_a, self.Q_d, self.Q_cj, self.Q_cbj = tra.T_2(self.Ny,self.Nx,self.Nj,self.rho_j, self.rho_a, self.D_sj, self.nu, self.g,
                                                             self.c_D, self.Q_v, self.v_sj, self.Q_cj, self.Q_cbj,
                                                             self.Q_th, self.Q_d, self.dt, self.porosity, self.Q_a,
-                                                            self.Erosionrate, self.Depositionrate)
+                                                            )
         self.sanityCheck()
         # self.printSubstates_to_screen('T_2')
         # Turbidity c. outflows
