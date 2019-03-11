@@ -3,7 +3,7 @@ import T1functions as T1
 import T2functions as T2
 import mathfunk as ma
 
-def T_1(Nj, Q_cj, rho_j, rho_a, Q_th, Q_v, dt, g,  DEBUG=None):  # Water entrainment. IN: Q_a,Q_th,Q_cj,Q_v. OUT: Q_vj,Q_th
+def T_1(Ny,Nx,Nj, Q_cj, rho_j, rho_a, Q_th, Q_v, dt, g,  DEBUG=None):  # Water entrainment. IN: Q_a,Q_th,Q_cj,Q_v. OUT: Q_vj,Q_th
     '''
     This function calculates the water entrainment.\
     Entrainment is the transport of fluid across an interface\
@@ -11,26 +11,24 @@ def T_1(Nj, Q_cj, rho_j, rho_a, Q_th, Q_v, dt, g,  DEBUG=None):  # Water entrain
     I.e. the 'mixing' of two fluids across their interface. \
 
     '''
-    #         ipdb.set_trace()
-    g_prime = ma.calc_g_prime(Nj, Q_cj, rho_j, rho_a, g=g)
-    if DEBUG is True:
-        g_prime[:, :] = 0.5
-    Ri = T1.calc_RichardsonNo(g_prime, Q_th, Q_v)
-    # Ri[np.isnan(Ri)] = 0
-    # Ri[Ri == 0] = np.inf
-    E_wStar = T1.calc_dimlessIncorporationRate(Ri)  # Dimensionless incorporation rate
-    E_w = T1.calc_rateOfSeaWaterIncorp(Q_v, E_wStar)  # Rate of seawater incorporation
-    nQ_th = Q_th + T1.calc_changeIn_q_th(E_w, dt)  # Update cell current thickness
-    # nQ_th[np.isnan(nQ_th)] = 0
+    nQ_th = np.zeros((Ny,Nx),dtype=np.double,order='C')
+    nQ_cj = np.zeros((Ny,Nx,Nj),dtype=np.double,order='C')
+    for ii in range(Ny):
+        for jj in range(Nx):
+            if(Q_th[ii,jj] > 0):
+                g_prime = 0
+                for zz in range(Nj):
+                    g_prime += g*(Q_cj[ii,jj,zz] * (rho_j[zz] - rho_a)/rho_a)
+                Ri_number = g_prime*Q_th[ii,jj]/(Q_v[ii,jj] * Q_v[ii,jj])
+                dimless_entrainment_rate = 0.075 / np.sqrt(1 + 718 * (Ri_number)**(2.4))
+                entrainment_rate = Q_v[ii,jj]*dimless_entrainment_rate
 
-    tempQ_cj = T1.calc_new_qcj(Q_cj, Q_th, nQ_th)
-    # tempQ_cj[np.isnan(tempQ_cj)] = 0
-    # if (tempQ_cj.sum() - Q_cj.sum() > 1e+03):
-    #     print("break")
+                nQ_th[ii,jj] = Q_th[ii,jj] + entrainment_rate * dt
+                for zz in range(Nj):
+                    nQ_cj[ii,jj,zz] = Q_cj[ii,jj,zz] * Q_th[ii,jj] / nQ_th[ii,jj]
 
-    Q_cj[1:-1, 1:-1] = np.round(tempQ_cj[1:-1, 1:-1], 15)
-    Q_th[1:-1, 1:-1] = np.round(nQ_th[1:-1, 1:-1], 15)
-    return Q_cj, Q_th
+
+    return nQ_cj, nQ_th
 
 
 def T_2(rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th, Q_d, dt, porosity, Q_a, Erosionrate, Depositionrate):

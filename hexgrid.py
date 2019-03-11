@@ -4,7 +4,7 @@ plt.style.use('bmh')
 import numpy as np
 # from scipy.ndimage import imread
 import mathfunk as ma
-import transition_functions_cy as tra
+import transition_functions as tra
 import numba as nb
 from mpldatacursor import datacursor
 
@@ -127,7 +127,7 @@ class Hexgrid():
         if global_grid is True:
             self.dt = self.calc_dt()  # Works as long as all ICs are given
 
-        self.Q_cj, self.Q_th = tra.T_1(self.Nj, self.Q_cj, self.rho_j, self.rho_a, self.Q_th, self.Q_v, self.dt, self.g)  # Water entrainment.
+        self.Q_cj, self.Q_th = tra.T_1(self.Ny, self.Nx, self.Nj, self.Q_cj, self.rho_j, self.rho_a, self.Q_th, self.Q_v, self.dt, self.g)  # Water entrainment.
         self.sanityCheck()
         # self.printSubstates_to_screen('T_1')
         # Erosion and deposition TODO: Fix cause of instability
