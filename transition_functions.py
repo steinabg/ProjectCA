@@ -48,7 +48,7 @@ def T_2(Ny, Nx, Nj, rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th
     num_cells_invalid = 0
     for ii in range(Ny):
         for jj in range(Nx):
-            if (Q_th[ii, jj] > 0) and (Q_v[ii,jj] > 0):
+            if (Q_th[ii, jj] > 0) and (Q_v[ii, jj] > 0) and (ii > 0) and (ii < Ny - 1) and (jj > 0) and (jj < Nx - 1):
                 num_cells += 1
                 # Deposition initialization:
                 sediment_mean_size = 1
@@ -78,6 +78,8 @@ def T_2(Ny, Nx, Nj, rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th
 
                     # Erosion part:
                     particle_reynolds = np.sqrt(g * (rho_j[kk] - rho_a) * D_sj[kk] / rho_a) * D_sj[kk] / nu
+                    # print("g = {}, rho_j[kk] = {}, rho_a = {}, Dsj = {}, nu = {}".format(g,rho_j[kk],rho_a,D_sj[kk],nu))
+                    # print(particle_reynolds)
                     if (particle_reynolds >= 3.5):
                         function_reynolds = particle_reynolds ** (0.6)
                     elif (particle_reynolds > 1) and (particle_reynolds < 3.5):
@@ -114,8 +116,8 @@ def T_2(Ny, Nx, Nj, rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th
                 for kk in range(Nj):
                     nQ_cj[ii, jj, kk] = Q_cj[ii, jj, kk]
                     nQ_cbj[ii, jj, kk] = Q_cbj[ii, jj, kk]
-    if num_cells == num_cells_invalid:
-        raise Exception("No cell changed")
+    # if num_cells == num_cells_invalid:
+    #     raise Exception("No cell changed")
 
     return nQ_a, nQ_d, nQ_cj, nQ_cbj
 

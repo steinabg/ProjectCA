@@ -345,28 +345,28 @@ class CAenvironment():
             for item in self.density:
                 f.write("%s\n" % item)
 
-        with open('full_%03ix%03i_%s_%03i_thetar%0.0f_maxerosionrate.txt' % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']),
-                  'w') as f:
-            for item in self.grid.Erosionrate:
-                f.write("%s\n" % item)
-
-        with open(
-                'full_%03ix%03i_%s_%03i_thetar%0.0f_maxdepositionrate.txt' % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']),
-                'w') as f:
-            for item in self.grid.Depositionrate:
-                f.write("%s\n" % item)
-
-        mt = np.sum(self.mass, axis=(1, 2, 3))
-        mb = np.array(self.massBed)
-        with open('full_%03ix%03i_%s_%03i_thetar%0.0f_totalmass.txt' % (self.Nx,self.Ny, s1, i + 1, self.parameters['theta_r']),
-                  'w') as f:
-            for item in (mt + mb):
-                f.write("%s\n" % item)
-
-        with open('full_%03ix%03i_%s_%03i_thetar%0.0f_head_velocity.txt' % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']),
-                  'w') as f:
-            for item in self.head_velocity:
-                f.write("%s\n" % item)
+        # with open('full_%03ix%03i_%s_%03i_thetar%0.0f_maxerosionrate.txt' % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']),
+        #           'w') as f:
+        #     for item in self.grid.Erosionrate:
+        #         f.write("%s\n" % item)
+        #
+        # with open(
+        #         'full_%03ix%03i_%s_%03i_thetar%0.0f_maxdepositionrate.txt' % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']),
+        #         'w') as f:
+        #     for item in self.grid.Depositionrate:
+        #         f.write("%s\n" % item)
+        #
+        # mt = np.sum(self.mass, axis=(1, 2, 3))
+        # mb = np.array(self.massBed)
+        # with open('full_%03ix%03i_%s_%03i_thetar%0.0f_totalmass.txt' % (self.Nx,self.Ny, s1, i + 1, self.parameters['theta_r']),
+        #           'w') as f:
+        #     for item in (mt + mb):
+        #         f.write("%s\n" % item)
+        #
+        # with open('full_%03ix%03i_%s_%03i_thetar%0.0f_head_velocity.txt' % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']),
+        #           'w') as f:
+        #     for item in self.head_velocity:
+        #         f.write("%s\n" % item)
 
 
     def plotStabilityCurves(self, i):
