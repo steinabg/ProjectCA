@@ -13,11 +13,11 @@ def T_1(Ny, Nx, Nj, Q_cj, rho_j, rho_a, Q_th, Q_v, dt, g,
     I.e. the 'mixing' of two fluids across their interface. \
 
     '''
-    nQ_th = np.zeros((Ny, Nx), dtype=np.double, order='C')
-    nQ_cj = np.zeros((Ny, Nx, Nj), dtype=np.double, order='C')
-    for ii in range(Ny):
-        for jj in range(Nx):
-            if (Q_th[ii, jj] > 0):
+    nQ_th = Q_th.copy()
+    nQ_cj = Q_cj.copy()
+    for ii in range(1,Ny-1):
+        for jj in range(1,Nx-1):
+            if (Q_th[ii, jj] > 0) and (Q_v[ii,jj] > 0):
                 g_prime = 0
                 for zz in range(Nj):
                     g_prime += g * (Q_cj[ii, jj, zz] * (rho_j[zz] - rho_a) / rho_a)
@@ -26,6 +26,8 @@ def T_1(Ny, Nx, Nj, Q_cj, rho_j, rho_a, Q_th, Q_v, dt, g,
                 entrainment_rate = Q_v[ii, jj] * dimless_entrainment_rate
 
                 nQ_th[ii, jj] = Q_th[ii, jj] + entrainment_rate * dt
+                if np.isnan(nQ_th[ii,jj]):
+                    raise ValueError
                 for zz in range(Nj):
                     nQ_cj[ii, jj, zz] = Q_cj[ii, jj, zz] * Q_th[ii, jj] / nQ_th[ii, jj]
 
@@ -42,9 +44,12 @@ def T_2(Ny, Nx, Nj, rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th
     nQ_d = np.zeros((Ny, Nx), dtype=np.double, order='C')
     nQ_cj = np.zeros((Ny, Nx, Nj), dtype=np.double, order='C')
     nQ_cbj = np.zeros((Ny, Nx, Nj), dtype=np.double, order='C')
+    num_cells = 0
+    num_cells_invalid = 0
     for ii in range(Ny):
         for jj in range(Nx):
-            if (Q_th[ii, jj] > 0):
+            if (Q_th[ii, jj] > 0) and (Q_v[ii,jj] > 0):
+                num_cells += 1
                 # Deposition initialization:
                 sediment_mean_size = 1
                 sum_q_cj = 0
@@ -83,7 +88,7 @@ def T_2(Ny, Nx, Nj, rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th
                     erosion_rate = (1.3 * 10 ** (-7) * Z_mj ** (5)) / (1 + 4.3 * 10 ** (-7) * Z_mj ** (5))
 
                     # Exner equation:
-                    f_sj[kk] = deposition_rate - erosion_rate * Q_cbj[ii, jj, kk] * fall_velocity_dimless
+                    f_sj[kk] = deposition_rate - erosion_rate * Q_cbj[ii, jj, kk]
                     f_sj_sum += f_sj[kk]
 
                 nQ_a[ii, jj] = Q_a[ii, jj] + dt / (1 - porosity) * f_sj_sum
@@ -93,6 +98,14 @@ def T_2(Ny, Nx, Nj, rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th
                     nQ_cj[ii, jj, kk] = Q_cj[ii, jj] - dt / ((1 - porosity) * Q_th[ii, jj]) * f_sj[kk]
                     nQ_cbj[ii, jj, kk] = Q_cbj[ii, jj, kk] + dt / ((1 - porosity) * Q_d[ii, jj]) * \
                                          (f_sj[kk] - Q_cbj[ii, jj, kk] * f_sj_sum)
+                    # If this operation leads to unphysical state, undo the rule:
+                    if (nQ_cj[ii,jj,kk] < 0) or (np.isnan(nQ_cj[ii,jj,kk])):
+                        num_cells_invalid += 1
+                        nQ_a[ii, jj] = Q_a[ii, jj]
+                        nQ_d[ii, jj] = Q_d[ii, jj]
+                        for kk in range(Nj):
+                            nQ_cj[ii, jj, kk] = Q_cj[ii, jj, kk]
+                            nQ_cbj[ii, jj, kk] = Q_cbj[ii, jj, kk]
 
 
             else:
@@ -101,6 +114,8 @@ def T_2(Ny, Nx, Nj, rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th
                 for kk in range(Nj):
                     nQ_cj[ii, jj, kk] = Q_cj[ii, jj, kk]
                     nQ_cbj[ii, jj, kk] = Q_cbj[ii, jj, kk]
+    if num_cells == num_cells_invalid:
+        raise Exception("No cell changed")
 
     return nQ_a, nQ_d, nQ_cj, nQ_cbj
 
@@ -113,12 +128,12 @@ def I_1(Q_th, Nj, Q_cj, rho_j, rho_a, Q_v, Q_a,
     p_f = np.deg2rad(1) # Height threshold friction angle
 
     '''
-    Q_o = np.zeros((Ny, Nx, 6), dtype=np.double, order='C')  # Reset outflow
-    for ii in range(Ny):
-        for jj in range(Nx):
+    nQ_o = np.zeros((Ny, Nx, 6), dtype=np.double, order='C')  # Reset outflow
+    for ii in range(1,Ny-1):
+        for jj in range(1,Nx-1):
             if (Q_th[ii, jj] > 0):  # If cell has flow perform algorithm
                 g_prime = g * np.sum(Q_cj[ii, jj, :] * (rho_j - rho_a) / rho_a)
-                h_k = 0.5 * Q_v[ii, jj] ** 2 / g_prime
+                h_k = 0.5 * (Q_v[ii, jj] * Q_v[ii, jj]) / g_prime
                 r = Q_th[ii, jj] + h_k
                 height_center = Q_a[ii, jj] + r
 
@@ -131,6 +146,8 @@ def I_1(Q_th, Nj, Q_cj, rho_j, rho_a, Q_v, Q_a,
                     nb_j = jj + nb_index[dir][1]
 
                     nb_h.append(Q_a[nb_i, nb_j] + Q_th[nb_i, nb_j])
+                    if np.isnan(nb_h[-1]):
+                        raise ValueError
                     if (np.arctan((height_center - nb_h[-1]) / dx) < p_f):
                         del A[dir - (6 - len(A))]
 
@@ -156,9 +173,11 @@ def I_1(Q_th, Nj, Q_cj, rho_j, rho_a, Q_v, Q_a,
 
                 for dir in A:
                     f[dir] = Average - nb_h[dir]
-                    Q_o[ii, jj, dir] = f[dir] * factor_n * factor_r
+                    nQ_o[ii, jj, dir] = f[dir] * factor_n * factor_r
+                    if (np.isnan(nQ_o[ii,jj,dir])):
+                        raise ValueError
 
-    return Q_o
+    return nQ_o
 
 
 def I_2(Ny, Nx, Nj, Q_o, Q_th, Q_cj):
@@ -182,13 +201,15 @@ def I_2(Ny, Nx, Nj, Q_o, Q_th, Q_cj):
                 Q_o_from_center_sum += Q_o[ii, jj, kk]
                 for ll in range(Nj):
                     Q_o_Q_cj_neighbors[ll] += Q_o[nb_ii, nb_jj, nb_flow_dir[kk]] * Q_cj[nb_ii, nb_jj, ll]
-            if (nQ_th[ii, jj] < 0):
+            if (nQ_th[ii, jj] < 0) or np.isnan(nQ_th[ii,jj]):
                 raise Exception("I_2: Negative sediment due to excessive outflow!")
 
             if (nQ_th[ii, jj] > 0):
                 for kk in range(Nj):
                     nQ_cj[ii, jj, kk] = 1 / nQ_th[ii, jj] * ((Q_th[ii, jj] - Q_o_from_center_sum) * Q_cj[ii, jj, kk] +
                                                              Q_o_Q_cj_neighbors[kk])
+                    if (np.isnan(nQ_cj[ii,jj,kk])) or (nQ_cj[ii,jj,kk] < 0):
+                        raise ValueError
 
     return nQ_th, nQ_cj
 
@@ -217,7 +238,12 @@ def I_3(g, Nj, Q_cj, rho_j, rho_a, Ny, Nx, Q_a, Q_th, NEIGHBOR, Q_o, Q_v, f, a, 
                         slope = 0
                         num_removed += 1
                     U += np.sqrt( 8 * g_prime * Q_cj_sum * Q_o[ii,jj,kk] * slope / (f * (1 + a)) )
-                nQ_v[ii,jj] = U/(6 - num_removed)
+                    if (np.isnan(U)):
+                        raise Exception("U is nan")
+                if num_removed < 6:
+                    nQ_v[ii,jj] = U/(6 - num_removed)
+                if np.isnan(nQ_v[ii, jj]):
+                    raise ValueError
 
     return nQ_v
 
