@@ -161,26 +161,36 @@ def I_1(Q_th, Nj, Q_cj, rho_j, rho_a, Q_v, Q_a,
     return Q_o
 
 
-def I_2(Ny, Nx, Nj, Q_o, NEIGHBOR, Q_th, Q_cj):
+def I_2(Ny, Nx, Nj, Q_o, Q_th, Q_cj):
     '''Update thickness and concentration. IN: Q_th,Q_cj,Q_o. OUT: Q_th,Q_cj'''
-    outflowNo = np.array([3, 4, 5, 0, 1, 2])  # Used to find "inflow" to cell from neighbors
-    s = np.zeros((Ny - 2, Nx - 2))
-    term2 = np.zeros((Ny - 2, Nx - 2, Nj))
-    for i in range(6):
-        inn = (Q_o[NEIGHBOR[i] + (outflowNo[i],)])
-        out = Q_o[1:-1, 1:-1, i]
-        s += (inn - out)
-    newq_th = Q_th[1:-1, 1:-1] + np.nan_to_num(s)
-    term1 = ((Q_th - np.sum(Q_o, axis=2))[:, :, np.newaxis] * Q_cj)[1:-1, 1:-1, :]
-    for j in range(Nj):
-        for i in range(6):
-            term2[:, :, j] += Q_o[NEIGHBOR[i] + (outflowNo[i],)] * Q_cj[NEIGHBOR[i] + (j,)]
-    with np.errstate(invalid='ignore'):
-        newq_cj = (term1 + term2) / newq_th[:, :, np.newaxis]
-    newq_cj[np.isinf(newq_cj)] = 0
-    Q_th[1:-1, 1:-1] = np.round(np.nan_to_num(newq_th), 15)
-    Q_cj[1:-1, 1:-1, :] = np.round(np.nan_to_num(newq_cj), 15)
-    return Q_th, Q_cj
+    nQ_th = Q_th.copy()
+    nQ_cj = np.zeros((Ny, Nx, Nj), dtype=np.double, order='C')
+    nb_index = [[-1, 0], [-1, 1], [0, 1], [1, 0], [1, -1], [0, -1]]
+    nb_flow_dir = [3, 4, 5, 0, 1, 2]
+    # Only update interior cells:
+    for ii in range(1, Ny - 1):
+        for jj in range(1, Nx - 1):
+            Q_o_from_center_sum = 0
+            Q_o_Q_cj_neighbors = np.zeros((Nj), dtype=np.double, order='C')
+            for kk in range(6):
+                # For thickness:
+                nb_ii = ii + nb_index[kk][0]
+                nb_jj = jj + nb_index[kk][1]
+                nQ_th[ii, jj] += Q_o[nb_ii, nb_jj, nb_flow_dir[kk]] - Q_o[ii, jj, kk]
+
+                # For concentration:
+                Q_o_from_center_sum += Q_o[ii, jj, kk]
+                for ll in range(Nj):
+                    Q_o_Q_cj_neighbors[ll] += Q_o[nb_ii, nb_jj, nb_flow_dir[kk]] * Q_cj[nb_ii, nb_jj, ll]
+            if (nQ_th[ii, jj] < 0):
+                raise Exception("I_2: Negative sediment due to excessive outflow!")
+
+            if (nQ_th[ii, jj] > 0):
+                for kk in range(Nj):
+                    nQ_cj[ii, jj, kk] = 1 / nQ_th[ii, jj] * ((Q_th[ii, jj] - Q_o_from_center_sum) * Q_cj[ii, jj, kk] +
+                                                             Q_o_Q_cj_neighbors[kk])
+
+    return nQ_th, nQ_cj
 
 
 def I_3(Nj, Q_cj, rho_j, rho_a, Ny, Nx, Q_a, Q_th, NEIGHBOR, Q_o, Q_v, f, a, DEBUG=None):  # Should be done
