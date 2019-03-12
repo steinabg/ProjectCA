@@ -146,7 +146,7 @@ class Hexgrid():
         self.Q_th, self.Q_cj = tra.I_2(self.Ny, self.Nx, self.Nj, self.Q_o, self.Q_th, self.Q_cj)
         self.sanityCheck()
         # self.printSubstates_to_screen('I_2')
-        self.Q_v = tra.I_3(self.Nj, self.Q_cj, self.rho_j, self.rho_a, self.Ny, self.Nx, self.Q_a, self.Q_th,
+        self.Q_v = tra.I_3(self.g, self.Nj, self.Q_cj, self.rho_j, self.rho_a, self.Ny, self.Nx, self.Q_a, self.Q_th,
                            self.NEIGHBOR, self.Q_o, self.Q_v, self.f, self.a)  # Update of turbidity flow velocity
         self.sanityCheck()
         # self.printSubstates_to_screen('I_3')

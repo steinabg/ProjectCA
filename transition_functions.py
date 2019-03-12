@@ -193,47 +193,33 @@ def I_2(Ny, Nx, Nj, Q_o, Q_th, Q_cj):
     return nQ_th, nQ_cj
 
 
-def I_3(Nj, Q_cj, rho_j, rho_a, Ny, Nx, Q_a, Q_th, NEIGHBOR, Q_o, Q_v, f, a, DEBUG=None):  # Should be done
+def I_3(g, Nj, Q_cj, rho_j, rho_a, Ny, Nx, Q_a, Q_th, NEIGHBOR, Q_o, Q_v, f, a, DEBUG=None):  # Should be done
     '''
     Update of turbidity flow velocity (speed!). IN: Q_a,Q_th,Q_o,Q_cj. OUT: Q_v.
     '''
-    #         ipdb.set_trace()
-    # g_prime = np.ndarray(Ny,Nx)
-    g_prime = ma.calc_g_prime(Nj, Q_cj, rho_j, rho_a)
-    if DEBUG is True:
-        g_prime[:, :] = 1
-    #         print("Q_cj=\n",Q_cj)
-    #         print("g_prime.shape=",g_prime.shape)
-    #         print("Q_cj.shape=",Q_cj.shape)
-    #         print("g_prime I_3 = ", g_prime)
-    #         print("g_prime =\n", g_prime)
+    nb_index = [[-1, 0], [-1, 1], [0, 1], [1, 0], [1, -1], [0, -1]]
+    nQ_v = np.zeros((Ny, Nx), dtype=np.double, order='C')
+    for ii in range(1, Ny-1):
+        for jj in range(1, Nx - 1):
+            if (Q_th[ii,jj] > 0):
+                U = 0
+                Q_cj_sum = 0
+                g_prime = 0
+                num_removed = 0
+                for kk in range(Nj):
+                    g_prime += g * (Q_cj[ii, jj, kk] * (rho_j[kk] - rho_a) / rho_a)
+                    Q_cj_sum += Q_cj[ii,jj,kk]
+                for kk in range(6):
+                    nb_ii = ii + nb_index[kk][0]
+                    nb_jj = jj + nb_index[kk][1]
+                    slope = (Q_a[ii,jj] + Q_th[ii,jj]) - (Q_a[nb_ii, nb_jj] + Q_th[nb_ii, nb_jj])
+                    if slope < 0:
+                        slope = 0
+                        num_removed += 1
+                    U += np.sqrt( 8 * g_prime * Q_cj_sum * Q_o[ii,jj,kk] * slope / (f * (1 + a)) )
+                nQ_v[ii,jj] = U/(6 - num_removed)
 
-    sum_q_cj = np.sum(Q_cj, axis=2)  # TCurrent sediment volume concentration
-    # #         print("sum_q_cj = ", sum_q_cj)
-    # #         q_o = Q_o[1:-1,1:-1,:]
-    # #         print("q_o = ", q_o)
-    # #         calc_Hdiff()
-
-    U_k = np.zeros((Ny - 2, Nx - 2, 6))
-    # #         print("diff=\n",diff[:,:,0])
-    # #         diff[np.isinf(diff)] = 0
-    diff = np.zeros((Ny - 2, Nx - 2, 6))
-    sum1 = Q_a + Q_th
-    for i in range(6):
-        diff[:, :, i] = np.abs((sum1)[1:-1, 1:-1] - (sum1)[NEIGHBOR[i]])
-    diff[np.isinf(diff)] = 0  # For borders. diff = 0 => U_k = 0. ok.
-    # diff[diff<0] = 0 # To avoid negative values in np.sqrt()
-
-    for i in range(6):
-        comp1 = (8 * g_prime * sum_q_cj)[1:-1, 1:-1] / (f * (1 + a))
-        comp2 = (Q_o[1:-1, 1:-1, i] * diff[:, :, i])
-        comp2[comp2 < 0] = 0  # TODO: Test om denne kan fjernes
-        with np.errstate(invalid='raise'):
-            temp = np.sqrt(comp1 * comp2)
-        U_k[:, :, i] = temp
-    # #             print("U_k[:,:,i]=\n",U_k[:,:,i])
-    Q_v[1:-1, 1:-1] = np.round(np.nan_to_num(ma.average_speed_hexagon(U_k)), 15)
-    return Q_v
+    return nQ_v
 
 
 def I_4(Q_d, Ny, Nx, dx, reposeAngle, Q_cbj, Q_a, seaBedDiff):  # Toppling rule
