@@ -138,16 +138,16 @@ class Hexgrid():
         self.sanityCheck()
         # self.printSubstates_to_screen('T_2')
         # Turbidity c. outflows
-        self.Q_o = tra.I_1(self.Q_th, self.Nj, self.Q_cj, self.rho_j, self.rho_a, self.Q_v, self.Q_a, self.Ny, self.Nx,
-                           self.dx, self.p_f, self.NEIGHBOR, self.p_adh, self.dt, self.Q_o, self.g)
+        self.Q_o = tra.I_1(self.Q_th, self.Nj, self.Q_cj, self.rho_j, self.rho_a, self.Q_v, self.Q_a,
+                           self.Ny, self.Nx, self.dx, self.p_f, self.p_adh, self.dt, self.g)
         self.sanityCheck()
         # self.printSubstates_to_screen('I_1')
         # Update thickness and concentration
         self.Q_th, self.Q_cj = tra.I_2(self.Ny, self.Nx, self.Nj, self.Q_o, self.Q_th, self.Q_cj)
         self.sanityCheck()
         # self.printSubstates_to_screen('I_2')
-        self.Q_v = tra.I_3(self.g, self.Nj, self.Q_cj, self.rho_j, self.rho_a, self.Ny, self.Nx, self.Q_a, self.Q_th,
-                           self.NEIGHBOR, self.Q_o, self.Q_v, self.f, self.a)  # Update of turbidity flow velocity
+        self.Q_v = tra.I_3(self.g, self.Nj, self.Q_cj, self.rho_j, self.rho_a, self.Ny, self.Nx, self.Q_a,
+                           self.Q_th, self.Q_o, self.f, self.a)  # Update of turbidity flow velocity
         self.sanityCheck()
         # self.printSubstates_to_screen('I_3')
         self.Q_a, self.Q_d, self.Q_cbj = tra.I_4(self.Q_d, self.Ny, self.Nx, self.dx, self.reposeAngle, self.Q_cbj,
@@ -155,6 +155,33 @@ class Hexgrid():
         self.sanityCheck()
         # self.printSubstates_to_screen('I_4')
 
+    def T_1(self):
+        self.Q_cj, self.Q_th = tra.T_1(self.Ny, self.Nx, self.Nj, self.Q_cj, self.rho_j, self.rho_a, self.Q_th,
+                                       self.Q_v, self.dt, self.g)  # Water entrainment.
+        self.sanityCheck()
+
+    def T_2(self):
+        self.Q_a, self.Q_d, self.Q_cj, self.Q_cbj = tra.T_2(self.Ny, self.Nx, self.Nj, self.rho_j, self.rho_a,
+                                                            self.D_sj, self.nu, self.g,
+                                                            self.c_D, self.Q_v, self.v_sj, self.Q_cj, self.Q_cbj,
+                                                            self.Q_th, self.Q_d, self.dt, self.porosity, self.Q_a,
+                                                            )
+        self.sanityCheck()
+    def I_1(self):
+        self.Q_o = tra.I_1(self.Q_th, self.Nj, self.Q_cj, self.rho_j, self.rho_a, self.Q_v, self.Q_a,
+                           self.Ny, self.Nx, self.dx, self.p_f, self.p_adh, self.dt, self.g)
+        self.sanityCheck()
+    def I_2(self):
+        self.Q_th, self.Q_cj = tra.I_2(self.Ny, self.Nx, self.Nj, self.Q_o, self.Q_th, self.Q_cj)
+        self.sanityCheck()
+    def I_3(self):
+        self.Q_v = tra.I_3(self.g, self.Nj, self.Q_cj, self.rho_j, self.rho_a, self.Ny, self.Nx, self.Q_a,
+                           self.Q_th, self.Q_o, self.f, self.a)  # Update of turbidity flow velocity
+        self.sanityCheck()
+    def I_4(self):
+        self.Q_a, self.Q_d, self.Q_cbj = tra.I_4(self.Q_d, self.Ny, self.Nx, self.dx, self.reposeAngle, self.Q_cbj,
+                                                 self.Q_a, self.seaBedDiff)  # Toppling rule
+        self.sanityCheck()
 
 
     def sanityCheck(self):

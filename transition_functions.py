@@ -5,7 +5,7 @@ import mathfunk as ma
 
 
 def T_1(Ny, Nx, Nj, Q_cj, rho_j, rho_a, Q_th, Q_v, dt, g,
-        DEBUG=None):  # Water entrainment. IN: Q_a,Q_th,Q_cj,Q_v. OUT: Q_vj,Q_th
+        ):  # Water entrainment. IN: Q_a,Q_th,Q_cj,Q_v. OUT: Q_vj,Q_th
     '''
     This function calculates the water entrainment.\
     Entrainment is the transport of fluid across an interface\
@@ -121,7 +121,7 @@ def T_2(Ny, Nx, Nj, rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th
 
 
 def I_1(Q_th, Nj, Q_cj, rho_j, rho_a, Q_v, Q_a,
-        Ny, Nx, dx, p_f, NEIGHBOR, p_adh, dt, Q_o, g, DEBUG=None):
+        Ny, Nx, dx, p_f, p_adh, dt, g):
     '''
     This function calculates the turbidity current outflows.\
     IN: Q_a,Q_th,Q_v,Q_cj. OUT: Q_o
@@ -214,7 +214,7 @@ def I_2(Ny, Nx, Nj, Q_o, Q_th, Q_cj):
     return nQ_th, nQ_cj
 
 
-def I_3(g, Nj, Q_cj, rho_j, rho_a, Ny, Nx, Q_a, Q_th, NEIGHBOR, Q_o, Q_v, f, a, DEBUG=None):  # Should be done
+def I_3(g, Nj, Q_cj, rho_j, rho_a, Ny, Nx, Q_a, Q_th, Q_o, f, a):  # Should be done
     '''
     Update of turbidity flow velocity (speed!). IN: Q_a,Q_th,Q_o,Q_cj. OUT: Q_v.
     '''
