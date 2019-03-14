@@ -63,7 +63,7 @@ def T_2(Ny, Nx, Nj, rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th
                     sediment_mean_size *= Q_cj[ii, jj, kk] * D_sj[kk]
 
                     # Erosion part:
-                    log_2_D_sj[kk] = np.log2(D_sj)
+                    log_2_D_sj[kk] = np.log2(D_sj[kk])
 
                 kappa = 1 - 0.288 * np.std(log_2_D_sj)
                 sediment_mean_size = sediment_mean_size ** (1 / Nj) / sum_q_cj
@@ -97,7 +97,7 @@ def T_2(Ny, Nx, Nj, rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th
                 nQ_d[ii, jj] = Q_d[ii, jj] + dt / (1 - porosity) * f_sj_sum
 
                 for kk in range(Nj):
-                    nQ_cj[ii, jj, kk] = Q_cj[ii, jj] - dt / ((1 - porosity) * Q_th[ii, jj]) * f_sj[kk]
+                    nQ_cj[ii, jj, kk] = Q_cj[ii, jj, kk] - dt / ((1 - porosity) * Q_th[ii, jj]) * f_sj[kk]
                     nQ_cbj[ii, jj, kk] = Q_cbj[ii, jj, kk] + dt / ((1 - porosity) * Q_d[ii, jj]) * \
                                          (f_sj[kk] - Q_cbj[ii, jj, kk] * f_sj_sum)
                     # If this operation leads to unphysical state, undo the rule:

@@ -7,6 +7,9 @@ from libc.stdlib cimport calloc
 from libc.math cimport sqrt as csqrt
 from libc.math cimport atan as carctan
 from libc.math cimport isnan as cisnan
+from libc.math cimport pow as cpow
+from libc.math cimport log2 as clog2
+cimport libc.math as clib
 
 @cython.cdivision(True)
 @cython.boundscheck(False) # turn off bounds-checking for entire function
@@ -49,7 +52,26 @@ def T_1(int Ny,int Nx,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,double[:,
 
     return nQ_cj, nQ_th
 
-def T_2(Ny, Nx, Nj, rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th, Q_d, dt, porosity, Q_a):
+@cython.cdivision(True)
+cdef double cstd(double *arr, int length):
+    cdef double sum = 0.0, mean, standardDeviation = 0.0
+    cdef int i
+
+    for i in range(length):
+        sum += arr[i]
+
+    mean = sum/length
+
+    for i in range(length):
+        standardDeviation += cpow(arr[i] - mean, 2)
+    return csqrt(standardDeviation/length)
+
+@cython.cdivision(True)
+@cython.boundscheck(False) # turn off bounds-checking for entire function
+@cython.wraparound(False)  # turn off negative index wrapping for entire function
+def T_2(int Ny,int Nx,int  Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,double g,double c_D,double[:,:] Q_v,
+        double[:] v_sj,double[:,:,:] Q_cj,double[:,:,:] Q_cbj,double[:,:] Q_th,double[:,:] Q_d,
+        double dt,double porosity,double[:,:] Q_a):
     '''
     This function updates Q_a,Q_d,Q_cj and Q_cbj. According to erosion and deposition rules.\
     IN: Q_a,Q_th,Q_cj,Q_cbj,Q_v. OUT:
@@ -59,8 +81,14 @@ def T_2(Ny, Nx, Nj, rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th
     nQ_d = np.zeros((Ny, Nx), dtype=np.double, order='C')
     nQ_cj = np.zeros((Ny, Nx, Nj), dtype=np.double, order='C')
     nQ_cbj = np.zeros((Ny, Nx, Nj), dtype=np.double, order='C')
-    num_cells = 0
-    num_cells_invalid = 0
+    cdef double[:,:] nQ_a_view = nQ_a
+    cdef double[:,:] nQ_d_view = nQ_d
+    cdef double[:,:,:] nQ_cj_view = nQ_cj
+    cdef double[:,:,:] nQ_cbj_view = nQ_cbj
+    cdef int num_cells = 0
+    cdef int num_cells_invalid = 0
+    cdef double *log_2_D_sj, sum_q_cj, sediment_mean_size, kappa, *f_sj, f_sj_sum
+    cdef double fall_velocity_dimless, near_bed_c, particle_reynolds, Z_mj, erosion_rate
     for ii in range(Ny):
         for jj in range(Nx):
             if (Q_th[ii, jj] > 0) and (Q_v[ii, jj] > 0) and (ii > 0) and (ii < Ny - 1) and (jj > 0) and (jj < Nx - 1):
@@ -70,7 +98,8 @@ def T_2(Ny, Nx, Nj, rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th
                 sum_q_cj = 0
 
                 # Erosion initialization:
-                log_2_D_sj = np.zeros((Nj), dtype=np.double, order='C')
+                # log_2_D_sj = np.zeros((Nj), dtype=np.double, order='C')
+                log_2_D_sj = <double*> calloc(Nj,sizeof(double))
 
                 for kk in range(Nj):
                     # Deposition part:
@@ -78,11 +107,12 @@ def T_2(Ny, Nx, Nj, rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th
                     sediment_mean_size *= Q_cj[ii, jj, kk] * D_sj[kk]
 
                     # Erosion part:
-                    log_2_D_sj[kk] = np.log2(D_sj)
+                    log_2_D_sj[kk] = clog2(D_sj[kk])
 
-                kappa = 1 - 0.288 * np.std(log_2_D_sj)
+                kappa = 1 - 0.288 * cstd(log_2_D_sj, Nj)
                 sediment_mean_size = sediment_mean_size ** (1 / Nj) / sum_q_cj
-                f_sj = np.zeros((Nj), dtype=np.double, order='C')
+                # f_sj = np.zeros((Nj), dtype=np.double, order='C')
+                f_sj = <double*> calloc(Nj,sizeof(double))
                 f_sj_sum = 0
 
                 for kk in range(Nj):
@@ -92,7 +122,7 @@ def T_2(Ny, Nx, Nj, rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th
                     deposition_rate = fall_velocity_dimless * near_bed_c
 
                     # Erosion part:
-                    particle_reynolds = np.sqrt(g * (rho_j[kk] - rho_a) * D_sj[kk] / rho_a) * D_sj[kk] / nu
+                    particle_reynolds = csqrt(g * (rho_j[kk] - rho_a) * D_sj[kk] / rho_a) * D_sj[kk] / nu
                     # print("g = {}, rho_j[kk] = {}, rho_a = {}, Dsj = {}, nu = {}".format(g,rho_j[kk],rho_a,D_sj[kk],nu))
                     # print(particle_reynolds)
                     if (particle_reynolds >= 3.5):
@@ -101,36 +131,36 @@ def T_2(Ny, Nx, Nj, rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th
                         function_reynolds = 0.586 * particle_reynolds ** (1.23)
                     else:
                         raise Exception('Eq. (40) (Salles) not defined for R_pj = {0}'.format(particle_reynolds))
-                    Z_mj = kappa * np.sqrt(c_D * Q_v[ii, jj]) * function_reynolds / fall_velocity_dimless
+                    Z_mj = kappa * csqrt(c_D * Q_v[ii, jj]) * function_reynolds / fall_velocity_dimless
                     erosion_rate = (1.3 * 10 ** (-7) * Z_mj ** (5)) / (1 + 4.3 * 10 ** (-7) * Z_mj ** (5))
 
                     # Exner equation:
                     f_sj[kk] = deposition_rate - erosion_rate * Q_cbj[ii, jj, kk]
                     f_sj_sum += f_sj[kk]
 
-                nQ_a[ii, jj] = Q_a[ii, jj] + dt / (1 - porosity) * f_sj_sum
-                nQ_d[ii, jj] = Q_d[ii, jj] + dt / (1 - porosity) * f_sj_sum
+                nQ_a_view[ii, jj] = Q_a[ii, jj] + dt / (1 - porosity) * f_sj_sum
+                nQ_d_view[ii, jj] = Q_d[ii, jj] + dt / (1 - porosity) * f_sj_sum
 
                 for kk in range(Nj):
-                    nQ_cj[ii, jj, kk] = Q_cj[ii, jj] - dt / ((1 - porosity) * Q_th[ii, jj]) * f_sj[kk]
-                    nQ_cbj[ii, jj, kk] = Q_cbj[ii, jj, kk] + dt / ((1 - porosity) * Q_d[ii, jj]) * \
+                    nQ_cj_view[ii, jj, kk] = Q_cj[ii, jj,kk] - dt / ((1 - porosity) * Q_th[ii, jj]) * f_sj[kk]
+                    nQ_cbj_view[ii, jj, kk] = Q_cbj[ii, jj, kk] + dt / ((1 - porosity) * Q_d[ii, jj]) * \
                                          (f_sj[kk] - Q_cbj[ii, jj, kk] * f_sj_sum)
                     # If this operation leads to unphysical state, undo the rule:
-                    if (nQ_cj[ii,jj,kk] < 0) or (np.isnan(nQ_cj[ii,jj,kk])):
+                    if (nQ_cj_view[ii,jj,kk] < 0) or (cisnan(nQ_cj_view[ii,jj,kk])):
                         num_cells_invalid += 1
-                        nQ_a[ii, jj] = Q_a[ii, jj]
-                        nQ_d[ii, jj] = Q_d[ii, jj]
+                        nQ_a_view[ii, jj] = Q_a[ii, jj]
+                        nQ_d_view[ii, jj] = Q_d[ii, jj]
                         for kk in range(Nj):
-                            nQ_cj[ii, jj, kk] = Q_cj[ii, jj, kk]
-                            nQ_cbj[ii, jj, kk] = Q_cbj[ii, jj, kk]
+                            nQ_cj_view[ii, jj, kk] = Q_cj[ii, jj, kk]
+                            nQ_cbj_view[ii, jj, kk] = Q_cbj[ii, jj, kk]
 
 
             else:
-                nQ_a[ii, jj] = Q_a[ii, jj]
-                nQ_d[ii, jj] = Q_d[ii, jj]
+                nQ_a_view[ii, jj] = Q_a[ii, jj]
+                nQ_d_view[ii, jj] = Q_d[ii, jj]
                 for kk in range(Nj):
-                    nQ_cj[ii, jj, kk] = Q_cj[ii, jj, kk]
-                    nQ_cbj[ii, jj, kk] = Q_cbj[ii, jj, kk]
+                    nQ_cj_view[ii, jj, kk] = Q_cj[ii, jj, kk]
+                    nQ_cbj_view[ii, jj, kk] = Q_cbj[ii, jj, kk]
     # if num_cells == num_cells_invalid:
     #     raise Exception("No cell changed")
 
