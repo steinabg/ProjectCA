@@ -4,7 +4,7 @@ plt.style.use('bmh')
 import numpy as np
 # from scipy.ndimage import imread
 import mathfunk as ma
-import transition_functions as tra
+import transition_functions_cy as tra
 import numba as nb
 from mpldatacursor import datacursor
 
@@ -21,7 +21,7 @@ class Hexgrid():
         self.f = 0.04  # Darcy-Weisbach coeff
         self.a = 0.43  # Empirical coefficient (used in I_3)
         self.rho_a = 1000  # ambient density
-        self.rho_j = np.array([2650])  # List of current sediment densities
+        self.rho_j = np.array([2650], dtype=np.dtype("i"), order='C')  # List of current sediment densities
         self.D_sj = np.array([0.00011])  # List of sediment-particle diameters
         self.Nj = 1  # Number of sediment types
         self.c_D = np.sqrt(0.003)  # Bed drag coefficient (table 3)
