@@ -168,7 +168,7 @@ def T_2(int Ny,int Nx,int  Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,do
 
 
 
-cpdef I_1(double[:,:] Q_th, Nj, Q_cj,double rho_j,double rho_a,double[:,:] Q_v,double[:,:] Q_a,
+def I_1(double[:,:] Q_th,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,double[:,:] Q_v,double[:,:] Q_a,
         int Ny,int Nx,double dx,double p_f, double p_adh,double dt, double g):
     '''
     This function calculates the turbidity current outflows.\
@@ -186,7 +186,9 @@ cpdef I_1(double[:,:] Q_th, Nj, Q_cj,double rho_j,double rho_a,double[:,:] Q_v,d
     for ii in range(1, Ny - 1):
         for jj in range(1, Nx - 1):
             if (Q_th[ii,jj] > 0.0): # If cell has flow perform algorithm
-                g_prime = g*np.sum(Q_cj[ii,jj,:] * (rho_j - rho_a)/rho_a)
+                g_prime = 0
+                for kk in range(Nj):
+                    g_prime += g * (Q_cj[ii, jj, kk] * (rho_j[kk] - rho_a) / rho_a)
                 h_k = 0.5 * Q_v[ii,jj] * Q_v[ii,jj] / g_prime
                 r = Q_th[ii,jj] + h_k
                 height_center = Q_a[ii,jj] + r
@@ -235,46 +237,81 @@ cpdef I_1(double[:,:] Q_th, Nj, Q_cj,double rho_j,double rho_a,double[:,:] Q_v,d
 
     return nQ_o
 
-
-def I_2(Ny, Nx, Nj, Q_o, Q_th, Q_cj):
+@cython.cdivision(True)
+@cython.boundscheck(False) # turn off bounds-checking for entire function
+@cython.wraparound(False)  # turn off negative index wrapping for entire function
+def I_2(int Ny,int Nx,int Nj,double[:,:,:] Q_o,double[:,:] Q_th,double[:,:,:] Q_cj):
     '''Update thickness and concentration. IN: Q_th,Q_cj,Q_o. OUT: Q_th,Q_cj'''
-    nQ_th = Q_th.copy()
+    nQ_th = np.zeros((Ny, Nx), dtype=np.double, order='C')
     nQ_cj = np.zeros((Ny, Nx, Nj), dtype=np.double, order='C')
-    nb_index = [[-1, 0], [-1, 1], [0, 1], [1, 0], [1, -1], [0, -1]]
-    nb_flow_dir = [3, 4, 5, 0, 1, 2]
+    cdef double[:,:] nQ_th_view = nQ_th
+    cdef double[:,:,:] nQ_cj_view = nQ_cj
+    # nb_index = [[-1, 0], [-1, 1], [0, 1], [1, 0], [1, -1], [0, -1]]
+    cdef int nb_index[6][2]
+    nb_index[0][:] = [-1, 0]
+    nb_index[1][:] = [-1, 1]
+    nb_index[2][:] = [0, 1]
+    nb_index[3][:] = [1, 0]
+    nb_index[4][:] = [1, -1]
+    nb_index[5][:] = [0, -1]
+    cdef int nb_flow_dir[6]
+    nb_flow_dir[:] = [3, 4, 5, 0, 1, 2]
+    cdef int ii, jj, kk, ll
+    cdef double Q_o_from_center_sum, *Q_o_Q_cj_neighbors
     # Only update interior cells:
-    for ii in range(1, Ny - 1):
-        for jj in range(1, Nx - 1):
-            Q_o_from_center_sum = 0
-            Q_o_Q_cj_neighbors = np.zeros((Nj), dtype=np.double, order='C')
-            for kk in range(6):
-                # For thickness:
-                nb_ii = ii + nb_index[kk][0]
-                nb_jj = jj + nb_index[kk][1]
-                nQ_th[ii, jj] += Q_o[nb_ii, nb_jj, nb_flow_dir[kk]] - Q_o[ii, jj, kk]
+    for ii in range(Ny):
+        for jj in range(Nx):
+            if (ii > 0) and (ii < Ny - 1) and (jj > 0) and (jj < Nx - 1):
+                Q_o_from_center_sum = 0
+                # Q_o_Q_cj_neighbors = np.zeros((Nj), dtype=np.double, order='C')
+                Q_o_Q_cj_neighbors = <double*> calloc(Nj, sizeof(double))
+                nQ_th_view[ii,jj] += Q_th[ii,jj]
+                for kk in range(6):
+                    # For thickness:
+                    nb_ii = ii + nb_index[kk][0]
+                    nb_jj = jj + nb_index[kk][1]
+                    nQ_th_view[ii, jj] += Q_o[nb_ii, nb_jj, nb_flow_dir[kk]] - Q_o[ii, jj, kk]
 
-                # For concentration:
-                Q_o_from_center_sum += Q_o[ii, jj, kk]
-                for ll in range(Nj):
-                    Q_o_Q_cj_neighbors[ll] += Q_o[nb_ii, nb_jj, nb_flow_dir[kk]] * Q_cj[nb_ii, nb_jj, ll]
-            if (nQ_th[ii, jj] < 0) or np.isnan(nQ_th[ii,jj]):
-                raise Exception("I_2: Negative sediment due to excessive outflow!")
+                    # For concentration:
+                    Q_o_from_center_sum += Q_o[ii, jj, kk]
+                    for ll in range(Nj):
+                        Q_o_Q_cj_neighbors[ll] += Q_o[nb_ii, nb_jj, nb_flow_dir[kk]] * Q_cj[nb_ii, nb_jj, ll]
+                if (nQ_th_view[ii, jj] < 0) or cisnan(nQ_th_view[ii,jj]):
+                    raise Exception("I_2: Negative sediment due to excessive outflow!")
 
-            if (nQ_th[ii, jj] > 0):
+                if (nQ_th_view[ii, jj] > 0):
+                    for kk in range(Nj):
+                        nQ_cj_view[ii, jj, kk] = 1 / nQ_th_view[ii, jj] * ((Q_th[ii, jj] - Q_o_from_center_sum) * Q_cj[ii, jj, kk] +
+                                                                 Q_o_Q_cj_neighbors[kk])
+                        if (cisnan(nQ_cj_view[ii,jj,kk])) or (nQ_cj_view[ii,jj,kk] < 0):
+                            raise ValueError
+            else:
+                nQ_th_view[ii,jj] = Q_th[ii,jj]
                 for kk in range(Nj):
-                    nQ_cj[ii, jj, kk] = 1 / nQ_th[ii, jj] * ((Q_th[ii, jj] - Q_o_from_center_sum) * Q_cj[ii, jj, kk] +
-                                                             Q_o_Q_cj_neighbors[kk])
-                    if (np.isnan(nQ_cj[ii,jj,kk])) or (nQ_cj[ii,jj,kk] < 0):
-                        raise ValueError
+                    nQ_cj_view[ii,jj,kk] = Q_cj[ii,jj,kk]
 
     return nQ_th, nQ_cj
 
-def I_3(g, Nj, Q_cj, rho_j, rho_a, Ny, Nx, Q_a, Q_th, Q_o, f, a):  # Should be done
+@cython.cdivision(True)
+@cython.boundscheck(False) # turn off bounds-checking for entire function
+@cython.wraparound(False)  # turn off negative index wrapping for entire function
+def I_3(double g,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,int Ny,int Nx,double[:,:] Q_a,
+    double[:,:] Q_th,double[:,:,:] Q_o,double f,double a):  # Should be done
     '''
     Update of turbidity flow velocity (speed!). IN: Q_a,Q_th,Q_o,Q_cj. OUT: Q_v.
     '''
-    nb_index = [[-1, 0], [-1, 1], [0, 1], [1, 0], [1, -1], [0, -1]]
+    # nb_index = [[-1, 0], [-1, 1], [0, 1], [1, 0], [1, -1], [0, -1]]
+    cdef int nb_index[6][2]
+    nb_index[0][:] = [-1, 0]
+    nb_index[1][:] = [-1, 1]
+    nb_index[2][:] = [0, 1]
+    nb_index[3][:] = [1, 0]
+    nb_index[4][:] = [1, -1]
+    nb_index[5][:] = [0, -1]
     nQ_v = np.zeros((Ny, Nx), dtype=np.double, order='C')
+    cdef double[:,:] nQ_v_view = nQ_v
+    cdef int ii, jj, nb_ii, nb_jj, num_removed
+    cdef double U, Q_cj_sum, g_prime, slope
     for ii in range(1, Ny-1):
         for jj in range(1, Nx - 1):
             if (Q_th[ii,jj] > 0):
@@ -292,12 +329,12 @@ def I_3(g, Nj, Q_cj, rho_j, rho_a, Ny, Nx, Q_a, Q_th, Q_o, f, a):  # Should be d
                     if slope < 0:
                         slope = 0
                         num_removed += 1
-                    U += np.sqrt( 8 * g_prime * Q_cj_sum * Q_o[ii,jj,kk] * slope / (f * (1 + a)) )
-                    if (np.isnan(U)):
+                    U += csqrt( 8 * g_prime * Q_cj_sum * Q_o[ii,jj,kk] * slope / (f * (1 + a)) )
+                    if (cisnan(U)):
                         raise Exception("U is nan")
                 if num_removed < 6:
-                    nQ_v[ii,jj] = U/(6 - num_removed)
-                if np.isnan(nQ_v[ii, jj]):
+                    nQ_v_view[ii,jj] = U/(6 - num_removed)
+                if cisnan(nQ_v_view[ii, jj]):
                     raise ValueError
 
     return nQ_v
