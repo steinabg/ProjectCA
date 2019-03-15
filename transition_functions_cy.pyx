@@ -167,7 +167,9 @@ def T_2(int Ny,int Nx,int  Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,do
     return nQ_a, nQ_d, nQ_cj, nQ_cbj
 
 
-
+@cython.cdivision(True)
+@cython.boundscheck(False) # turn off bounds-checking for entire function
+@cython.wraparound(False)  # turn off negative index wrapping for entire function
 def I_1(double[:,:] Q_th,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,double[:,:] Q_v,double[:,:] Q_a,
         int Ny,int Nx,double dx,double p_f, double p_adh,double dt, double g):
     '''
@@ -181,8 +183,14 @@ def I_1(double[:,:] Q_th,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,double
     cdef int ii,jj,dir, nb_i, nb_j, zz, index
     cdef list
     cdef double Average, r, h_k, g_prime, height_center, *nb_h, *f, factor_n, factor_r, sum_nb_h_in_A
-    nb_index = [[-1,0],[-1,1],[0,1],[1,0],[1,-1],[0,-1]]
-    # cdef int nb_index = {{-1,0},{-1,1},{0,1},{1,0},{1,-1},{0,-1}}
+    # nb_index = [[-1,0],[-1,1],[0,1],[1,0],[1,-1],[0,-1]]
+    cdef int nb_index[6][2]
+    nb_index[0][:] = [-1, 0]
+    nb_index[1][:] = [-1, 1]
+    nb_index[2][:] = [0, 1]
+    nb_index[3][:] = [1, 0]
+    nb_index[4][:] = [1, -1]
+    nb_index[5][:] = [0, -1]
     for ii in range(1, Ny - 1):
         for jj in range(1, Nx - 1):
             if (Q_th[ii,jj] > 0.0): # If cell has flow perform algorithm
