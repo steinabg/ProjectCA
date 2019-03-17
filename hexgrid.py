@@ -150,7 +150,7 @@ class Hexgrid():
                            self.Q_th, self.Q_o, self.f, self.a)  # Update of turbidity flow velocity
         self.sanityCheck()
         # self.printSubstates_to_screen('I_3')
-        self.Q_a, self.Q_d, self.Q_cbj = tra.I_4(self.Q_d, self.Ny, self.Nx, self.dx, self.reposeAngle, self.Q_cbj,
+        self.Q_a, self.Q_d, self.Q_cbj = tra.I_4(self.Q_d, self.Ny, self.Nx, self.Nj, self.dx, self.reposeAngle, self.Q_cbj,
                                                  self.Q_a, self.seaBedDiff)  # Toppling rule
         self.sanityCheck()
         # self.printSubstates_to_screen('I_4')
@@ -179,7 +179,7 @@ class Hexgrid():
                            self.Q_th, self.Q_o, self.f, self.a)  # Update of turbidity flow velocity
         self.sanityCheck()
     def I_4(self):
-        self.Q_a, self.Q_d, self.Q_cbj = tra.I_4(self.Q_d, self.Ny, self.Nx, self.dx, self.reposeAngle, self.Q_cbj,
+        self.Q_a, self.Q_d, self.Q_cbj = tra.I_4(self.Q_d, self.Ny, self.Nx, self.Nj, self.dx, self.reposeAngle, self.Q_cbj,
                                                  self.Q_a, self.seaBedDiff)  # Toppling rule
         self.sanityCheck()
 

@@ -103,7 +103,9 @@ class CAenvironment():
 
         if parameters['sphere_settling_velocity'] != 'salles':
             self.grid.v_sj = parameters['sphere_settling_velocity']
-
+        else:
+            self.grid.v_sj = ma.calc_settling_speed(self.grid.D_sj, self.grid.rho_a, self.grid.rho_j,
+                                                    self.grid.g, self.grid.nu)
         self.time = []
         self.mass = []
         self.massBed = []

@@ -1,3 +1,4 @@
+# distutils: language = c++
 import numpy as np
 import T1functions as T1
 import T2functions as T2
@@ -6,10 +7,11 @@ cimport cython
 from libc.stdlib cimport calloc
 from libc.math cimport sqrt as csqrt
 from libc.math cimport atan as carctan
+from libc.math cimport tan as ctan
 from libc.math cimport isnan as cisnan
 from libc.math cimport pow as cpow
 from libc.math cimport log2 as clog2
-cimport libc.math as clib
+from libcpp.vector cimport vector as cvector
 
 @cython.cdivision(True)
 @cython.boundscheck(False) # turn off bounds-checking for entire function
@@ -347,79 +349,72 @@ def I_3(double g,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,int Ny,int Nx,
 
     return nQ_v
 
-def I_4(Q_d, Ny, Nx, dx, reposeAngle, Q_cbj, Q_a, seaBedDiff):  # Toppling rule
-    # angle = np.zeros((Ny - 2, Ny - 2, 6))
-    indices = np.zeros((Ny - 2, Nx - 2, 6))
-    NoOfTrans = np.zeros((Ny - 2, Nx - 2))
-    frac = np.zeros((Ny - 2, Nx - 2, 6))
-    deltaS = np.zeros((Ny - 2, Nx - 2, 6))
-    deltaSSum = np.zeros((Ny - 2, Nx - 2))
-    diff = np.zeros((Ny - 2, Nx - 2, 6))
+@cython.cdivision(True)
+@cython.boundscheck(False) # turn off bounds-checking for entire function
+@cython.wraparound(False)  # turn off negative index wrapping for entire function
+def I_4(double[:,:] Q_d,int Ny,int Nx,int Nj,double dx,double reposeAngle,double[:,:,:] Q_cbj,double[:,:] Q_a,double[:,:,:] seaBedDiff):  # Toppling rule
+    nQ_d = np.zeros((Ny,Nx), dtype=np.double, order='C')
+    nQ_a = np.zeros((Ny,Nx), dtype=np.double, order='C')
+    nQ_cbj = np.zeros((Ny,Nx, Nj), dtype=np.double, order='C')
+    cdef double[:,:] nQ_d_view = nQ_d
+    cdef double[:,:] nQ_a_view = nQ_a
+    cdef double[:,:,:] nQ_cbj_view = nQ_cbj
+    cdef int ii, jj, kk, num_recv, *give_dir, nb_no, nb_ii, nb_jj, ll
+    cdef double *diff, angle, frac, deltaS
 
-    interiorH = Q_d[1:-1, 1:-1]
-    old_height = Q_d.copy()
-    # Calculate height differences of all neighbors
-    diff[:, :, 0] = interiorH - old_height[0:Ny - 2, 1:Nx - 1] + seaBedDiff[:, :, 0]
-    diff[:, :, 1] = interiorH - old_height[0:Ny - 2, 2:Nx] + seaBedDiff[:, :, 1]
-    diff[:, :, 2] = interiorH - old_height[1:Ny - 1, 2:Nx] + seaBedDiff[:, :, 2]
-    diff[:, :, 3] = interiorH - old_height[2:Ny, 1:Nx - 1] + seaBedDiff[:, :, 3]
-    diff[:, :, 4] = interiorH - old_height[2:Ny, 0:Nx - 2] + seaBedDiff[:, :, 4]
-    diff[:, :, 5] = interiorH - old_height[1:Ny - 1, 0:Nx - 2] + seaBedDiff[:, :, 5]
+    # nb_index = [[-1, 0], [-1, 1], [0, 1], [1, 0], [1, -1], [0, -1]]
+    cdef int nb_index[6][2]
+    nb_index[0][:] = [-1, 0]
+    nb_index[1][:] = [-1, 1]
+    nb_index[2][:] = [0, 1]
+    nb_index[3][:] = [1, 0]
+    nb_index[4][:] = [1, -1]
+    nb_index[5][:] = [0, -1]
+    for ii in range(Ny):
+        for jj in range(Nx):
+            if (Q_d[ii,jj] > 0) and (ii > 0) and (ii < Ny - 1) and (jj > 0) and (jj < Nx - 1):
+                nQ_d_view[ii, jj] += Q_d[ii, jj]
+                nQ_a_view[ii, jj] += Q_a[ii, jj]
+                num_recv = 0
+                # give_dir = np.zeros((6),np.int, order='C')
+                give_dir = <int*> calloc(6, sizeof(int))
+                # diff = np.zeros((6), dtype=np.double, order='C')
+                diff = <double*> calloc(6, sizeof(double))
+                for kk in range(6):
+                    nb_ii = ii + nb_index[kk][0]
+                    nb_jj = jj + nb_index[kk][1]
+                    diff[kk] = Q_d[ii,jj] - Q_d[nb_ii, nb_jj] + seaBedDiff[ii-1,jj-1,kk]
+                    angle = carctan(diff[kk]/dx)
+                    if angle > reposeAngle:
+                        give_dir[num_recv] = kk
+                        num_recv += 1
+                if num_recv > 0:
+                    for kk in range(num_recv):
+                        nb_no = give_dir[kk]
+                        nb_ii = ii + nb_index[nb_no][0]
+                        nb_jj = jj + nb_index[nb_no][1]
+                        frac = 0.5 * (diff[nb_no] - dx * ctan(reposeAngle)) / Q_d[ii,jj]
+                        if frac > 0.5:
+                            frac = 0.5
+                        deltaS = Q_d[ii,jj] * frac/num_recv
+                        nQ_d_view[nb_ii,nb_jj] += Q_d[nb_ii, nb_jj] + deltaS
+                        nQ_a_view[nb_ii,nb_jj] += Q_a[nb_ii, nb_jj] + deltaS
+
+                        nQ_d_view[ii,jj] -= deltaS
+                        nQ_a_view[ii,jj] -= deltaS
+
+                        for ll in range(Nj):
+                            nQ_cbj_view[nb_ii, nb_jj, ll] = (Q_d[nb_ii, nb_jj] * Q_cbj[nb_ii, nb_jj, ll] +
+                                                       Q_cbj[ii,jj, ll] * deltaS) / nQ_d_view[nb_ii, nb_jj]
+                else:
+                    for kk in range(Nj):
+                        nQ_cbj_view[ii, jj, kk] = Q_cbj[ii, jj, kk]
+            else:
+                nQ_d_view[ii, jj] = Q_d[ii, jj]
+                nQ_a_view[ii, jj] = Q_a[ii, jj]
+                for kk in range(Nj):
+                    nQ_cbj_view[ii, jj, kk] = Q_cbj[ii, jj, kk]
 
 
 
-    # Find angles
-    angle = np.arctan2(diff,dx)
-
-    # (Checks if cell (i,j) has angle > repose angle and that it has mass > 0. For all directions.)
-    # Find cells (i,j) for which to transfer mass in the direction given
-    for i in np.arange(6):
-        indices[:, :, i] = np.logical_and(angle[:, :, i] > reposeAngle, (
-                interiorH > 0))  # Gives indices (i,j) where the current angle > repose angle and where height is > 0
-
-    # Count up the number of cells (i,j) will be transfering mass to. If none, set (i,j) to infinity so that division works.
-    #         NoOfTrans = np.sum(indices,axis=2)  # Gir tregere resultat?
-    for i in np.arange(6):
-        NoOfTrans += indices[:, :, i]
-    NoOfTrans[NoOfTrans == 0] = np.inf
-
-    # Calculate fractions of mass to be transfered
-    for i in np.arange(6):
-        frac[(indices[:, :, i] > 0), i] = (
-                0.5 * (diff[(indices[:, :, i] > 0), i] - dx * np.tan(reposeAngle)) / (
-            interiorH[(indices[:, :, i] > 0)]))
-    frac[frac > 0.5] = 0.5
-    #         print("frac.shape=",frac.shape)
-
-    for i in np.arange(6):
-        deltaS[(indices[:, :, i] > 0), i] = interiorH[(indices[:, :, i] > 0)] * frac[(indices[:, :, i] > 0), i] / \
-                                            NoOfTrans[(indices[:, :,
-                                                       i] > 0)]  # Mass to be transfered from index [i,j] to index [i-1,j]
-
-    # Lag en endringsmatrise deltaSSum som kan legges til Q_d
-    # Trekk fra massen som skal sendes ut fra celler
-    deltaSSum = -np.sum(deltaS, axis=2)
-
-    # Legg til massen som skal tas imot. BRUK NEIGHBOR
-    deltaSSum += np.roll(np.roll(deltaS[:, :, 0], -1, 0), 0, 1)
-    deltaSSum += np.roll(np.roll(deltaS[:, :, 1], -1, 0), 1, 1)
-    deltaSSum += np.roll(np.roll(deltaS[:, :, 2], 0, 0), 1, 1)
-    deltaSSum += np.roll(np.roll(deltaS[:, :, 3], 1, 0), 0, 1)
-    deltaSSum += np.roll(np.roll(deltaS[:, :, 4], 1, 0), -1, 1)
-    deltaSSum += np.roll(np.roll(deltaS[:, :, 5], 0, 0), -1, 1)
-
-    oldQ_d = Q_d.copy()
-    Q_d[1:-1, 1:-1] += deltaSSum
-    Q_a[1:-1, 1:-1] += deltaSSum
-    # Legg inn endring i volum fraksjon Q_cbj
-    prefactor = 1 / Q_d[1:-1, 1:-1, np.newaxis]
-    prefactor[np.isinf(prefactor)] = 0
-    nq_cbj = np.nan_to_num(prefactor *
-                           (oldQ_d[1:-1, 1:-1, np.newaxis] * Q_cbj[1:-1, 1:-1, :] + deltaSSum[:, :, None]))
-    nq_cbj = np.round(nq_cbj,15)
-    Q_cbj[1:-1, 1:-1] = nq_cbj
-    Q_cbj[Q_cbj < 1e-15] = 0
-    if (Q_d < -1e-7).sum() > 0:
-        print('height', Q_d[1, 6])
-        raise RuntimeError('Negative sediment thickness!')
-    return Q_a, Q_d, Q_cbj
+    return nQ_a, nQ_d, nQ_cbj
