@@ -73,7 +73,7 @@ cdef double cstd(double *arr, int length):
 @cython.wraparound(False)  # turn off negative index wrapping for entire function
 def T_2(int Ny,int Nx,int  Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,double g,double c_D,double[:,:] Q_v,
         double[:] v_sj,double[:,:,:] Q_cj,double[:,:,:] Q_cbj,double[:,:] Q_th,double[:,:] Q_d,
-        double dt,double porosity,double[:,:] Q_a):
+        double dt,double porosity,double[:,:] Q_a, Q_v_is_zero_two_timesteps):
     '''
     This function updates Q_a,Q_d,Q_cj and Q_cbj. According to erosion and deposition rules.\
     IN: Q_a,Q_th,Q_cj,Q_cbj,Q_v. OUT:
@@ -83,6 +83,7 @@ def T_2(int Ny,int Nx,int  Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,do
     nQ_d = np.zeros((Ny, Nx), dtype=np.double, order='C')
     nQ_cj = np.zeros((Ny, Nx, Nj), dtype=np.double, order='C')
     nQ_cbj = np.zeros((Ny, Nx, Nj), dtype=np.double, order='C')
+    nQ_th = np.zeros((Ny, Nx), dtype=np.double, order='C')
     cdef double[:,:] nQ_a_view = nQ_a
     cdef double[:,:] nQ_d_view = nQ_d
     cdef double[:,:,:] nQ_cj_view = nQ_cj
@@ -93,6 +94,7 @@ def T_2(int Ny,int Nx,int  Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,do
     cdef double fall_velocity_dimless, near_bed_c, particle_reynolds, Z_mj, erosion_rate
     for ii in range(Ny):
         for jj in range(Nx):
+            nQ_th[ii,jj] = Q_th[ii,jj]
             if (Q_th[ii, jj] > 0) and (Q_v[ii, jj] > 0) and (ii > 0) and (ii < Ny - 1) and (jj > 0) and (jj < Nx - 1):
                 num_cells += 1
                 # Deposition initialization:
@@ -166,7 +168,7 @@ def T_2(int Ny,int Nx,int  Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,do
     # if num_cells == num_cells_invalid:
     #     raise Exception("No cell changed")
 
-    return nQ_a, nQ_d, nQ_cj, nQ_cbj
+    return nQ_a, nQ_d, nQ_cj, nQ_cbj, nQ_th
 
 
 @cython.cdivision(True)
@@ -306,7 +308,7 @@ def I_2(int Ny,int Nx,int Nj,double[:,:,:] Q_o,double[:,:] Q_th,double[:,:,:] Q_
 @cython.boundscheck(False) # turn off bounds-checking for entire function
 @cython.wraparound(False)  # turn off negative index wrapping for entire function
 def I_3(double g,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,int Ny,int Nx,double[:,:] Q_a,
-    double[:,:] Q_th,double[:,:,:] Q_o,double f,double a):  # Should be done
+    double[:,:] Q_th,double[:,:,:] Q_o,double f,double a, Q_v):  # Should be done
     '''
     Update of turbidity flow velocity (speed!). IN: Q_a,Q_th,Q_o,Q_cj. OUT: Q_v.
     '''
@@ -319,6 +321,7 @@ def I_3(double g,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,int Ny,int Nx,
     nb_index[4][:] = [1, -1]
     nb_index[5][:] = [0, -1]
     nQ_v = np.zeros((Ny, Nx), dtype=np.double, order='C')
+    Q_v_is_zero_two_timesteps = np.zeros((Ny, Nx), dtype=np.int, order='C')
     cdef double[:,:] nQ_v_view = nQ_v
     cdef int ii, jj, nb_ii, nb_jj, num_removed
     cdef double U, Q_cj_sum, g_prime, slope
@@ -347,7 +350,7 @@ def I_3(double g,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,int Ny,int Nx,
                 if cisnan(nQ_v_view[ii, jj]):
                     raise ValueError
 
-    return nQ_v
+    return nQ_v, Q_v_is_zero_two_timesteps
 
 @cython.cdivision(True)
 @cython.boundscheck(False) # turn off bounds-checking for entire function

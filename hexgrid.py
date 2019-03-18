@@ -4,7 +4,7 @@ plt.style.use('bmh')
 import numpy as np
 # from scipy.ndimage import imread
 import mathfunk as ma
-import transition_functions_cy as tra
+import transition_functions as tra
 import numba as nb
 from mpldatacursor import datacursor
 
@@ -61,6 +61,7 @@ class Hexgrid():
             self.Q_a = self.Q_d.copy()  # Bathymetry legges til Q_a i self.setBathymetry(terrain)
         # print(self.Q_a)
         self.Q_o = np.zeros((self.Ny, self.Nx, 6),order='C', dtype=np.double)  # Density current outflow
+        self.Q_v_is_zero_two_timesteps = np.zeros((self.Ny, self.Nx), dtype=np.int, order='C') # update in I3 read in T2
 
         ################### Set Initial conditions #####################
         if ICstates is not None: self.set_substate_ICs(ICstates)
@@ -130,11 +131,12 @@ class Hexgrid():
         self.Q_cj, self.Q_th = tra.T_1(self.Ny, self.Nx, self.Nj, self.Q_cj, self.rho_j, self.rho_a, self.Q_th, self.Q_v, self.dt, self.g)  # Water entrainment.
         self.sanityCheck()
         # self.printSubstates_to_screen('T_1')
-        # Erosion and deposition TODO: Fix cause of instability
-        self.Q_a, self.Q_d, self.Q_cj, self.Q_cbj = tra.T_2(self.Ny,self.Nx,self.Nj,self.rho_j, self.rho_a, self.D_sj, self.nu, self.g,
-                                                            self.c_D, self.Q_v, self.v_sj, self.Q_cj, self.Q_cbj,
-                                                            self.Q_th, self.Q_d, self.dt, self.porosity, self.Q_a,
-                                                            )
+        # Erosion and deposition
+        self.Q_a, self.Q_d, self.Q_cj, self.Q_cbj, self.Q_th = tra.T_2(self.Ny,self.Nx,self.Nj,self.rho_j, self.rho_a,
+                                                                       self.D_sj, self.nu, self.g,
+                                                                self.c_D, self.Q_v, self.v_sj, self.Q_cj, self.Q_cbj,
+                                                                self.Q_th, self.Q_d, self.dt, self.porosity, self.Q_a,
+                                                                self.Q_v_is_zero_two_timesteps)
         self.sanityCheck()
         # self.printSubstates_to_screen('T_2')
         # Turbidity c. outflows
@@ -146,8 +148,8 @@ class Hexgrid():
         self.Q_th, self.Q_cj = tra.I_2(self.Ny, self.Nx, self.Nj, self.Q_o, self.Q_th, self.Q_cj)
         self.sanityCheck()
         # self.printSubstates_to_screen('I_2')
-        self.Q_v = tra.I_3(self.g, self.Nj, self.Q_cj, self.rho_j, self.rho_a, self.Ny, self.Nx, self.Q_a,
-                           self.Q_th, self.Q_o, self.f, self.a)  # Update of turbidity flow velocity
+        self.Q_v, self.Q_v_is_zero_two_timesteps = tra.I_3(self.g, self.Nj, self.Q_cj, self.rho_j, self.rho_a, self.Ny, self.Nx, self.Q_a,
+                           self.Q_th, self.Q_o, self.f, self.a, self.Q_v)  # Update of turbidity flow velocity
         self.sanityCheck()
         # self.printSubstates_to_screen('I_3')
         self.Q_a, self.Q_d, self.Q_cbj = tra.I_4(self.Q_d, self.Ny, self.Nx, self.Nj, self.dx, self.reposeAngle, self.Q_cbj,
@@ -161,11 +163,11 @@ class Hexgrid():
         self.sanityCheck()
 
     def T_2(self):
-        self.Q_a, self.Q_d, self.Q_cj, self.Q_cbj = tra.T_2(self.Ny, self.Nx, self.Nj, self.rho_j, self.rho_a,
+        self.Q_a, self.Q_d, self.Q_cj, self.Q_cbj, self.Q_th = tra.T_2(self.Ny, self.Nx, self.Nj, self.rho_j, self.rho_a,
                                                             self.D_sj, self.nu, self.g,
                                                             self.c_D, self.Q_v, self.v_sj, self.Q_cj, self.Q_cbj,
                                                             self.Q_th, self.Q_d, self.dt, self.porosity, self.Q_a,
-                                                            )
+                                                            self.Q_v_is_zero_two_timesteps)
         self.sanityCheck()
     def I_1(self):
         self.Q_o = tra.I_1(self.Q_th, self.Nj, self.Q_cj, self.rho_j, self.rho_a, self.Q_v, self.Q_a,
@@ -175,8 +177,8 @@ class Hexgrid():
         self.Q_th, self.Q_cj = tra.I_2(self.Ny, self.Nx, self.Nj, self.Q_o, self.Q_th, self.Q_cj)
         self.sanityCheck()
     def I_3(self):
-        self.Q_v = tra.I_3(self.g, self.Nj, self.Q_cj, self.rho_j, self.rho_a, self.Ny, self.Nx, self.Q_a,
-                           self.Q_th, self.Q_o, self.f, self.a)  # Update of turbidity flow velocity
+        self.Q_v, self.Q_v_is_zero_two_timesteps = tra.I_3(self.g, self.Nj, self.Q_cj, self.rho_j, self.rho_a, self.Ny, self.Nx, self.Q_a,
+                           self.Q_th, self.Q_o, self.f, self.a, self.Q_v)  # Update of turbidity flow velocity
         self.sanityCheck()
     def I_4(self):
         self.Q_a, self.Q_d, self.Q_cbj = tra.I_4(self.Q_d, self.Ny, self.Nx, self.Nj, self.dx, self.reposeAngle, self.Q_cbj,

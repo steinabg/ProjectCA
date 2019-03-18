@@ -34,7 +34,8 @@ def T_1(Ny, Nx, Nj, Q_cj, rho_j, rho_a, Q_th, Q_v, dt, g,
     return nQ_cj, nQ_th
 
 
-def T_2(Ny, Nx, Nj, rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th, Q_d, dt, porosity, Q_a):
+def T_2(Ny, Nx, Nj, rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th, Q_d, dt, porosity, Q_a,
+        Q_v_is_zero_two_timesteps):
     '''
     This function updates Q_a,Q_d,Q_cj and Q_cbj. According to erosion and deposition rules.\
     IN: Q_a,Q_th,Q_cj,Q_cbj,Q_v. OUT:
@@ -44,10 +45,13 @@ def T_2(Ny, Nx, Nj, rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th
     nQ_d = np.zeros((Ny, Nx), dtype=np.double, order='C')
     nQ_cj = np.zeros((Ny, Nx, Nj), dtype=np.double, order='C')
     nQ_cbj = np.zeros((Ny, Nx, Nj), dtype=np.double, order='C')
+    nQ_th = np.zeros((Ny, Nx), dtype=np.double, order='C')
     num_cells = 0
     num_cells_invalid = 0
     for ii in range(Ny):
         for jj in range(Nx):
+            nQ_th[ii, jj] = Q_th[ii, jj]
+            # If (interior cell) && (velocity > 0) -> Normal rule
             if (Q_th[ii, jj] > 0) and (Q_v[ii, jj] > 0) and (ii > 0) and (ii < Ny - 1) and (jj > 0) and (jj < Nx - 1):
                 num_cells += 1
                 # Deposition initialization:
@@ -108,8 +112,18 @@ def T_2(Ny, Nx, Nj, rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th
                         for kk in range(Nj):
                             nQ_cj[ii, jj, kk] = Q_cj[ii, jj, kk]
                             nQ_cbj[ii, jj, kk] = Q_cbj[ii, jj, kk]
+            # If (interior cell) && (velocity has been zero for two time steps): sediment everything; remove t current
+            elif (Q_v_is_zero_two_timesteps[ii, jj] == 1) and (Q_v[ii, jj] > 0) and (ii > 0) and (ii < Ny - 1) and (jj > 0) and (jj < Nx - 1):
+                nQ_a[ii, jj] = Q_a[ii, jj] + np.sum(Q_cj[ii, jj,:]) * Q_th[ii, jj]
+                nQ_d[ii, jj] = Q_d[ii, jj] + np.sum(Q_cj[ii, jj,:]) * Q_th[ii, jj]
+
+                for kk in range(Nj):
+                    nQ_cbj[ii, jj, kk] = Q_cbj[ii, jj, kk] + Q_cj[ii, jj] * Q_th[ii, jj]
+                    nQ_cj[ii, jj, kk] = 0
+                nQ_th[ii, jj] = 0
 
 
+            # Mainly for border cells or cells away from "action"
             else:
                 nQ_a[ii, jj] = Q_a[ii, jj]
                 nQ_d[ii, jj] = Q_d[ii, jj]
@@ -119,7 +133,7 @@ def T_2(Ny, Nx, Nj, rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th
     # if num_cells == num_cells_invalid:
     #     raise Exception("No cell changed")
 
-    return nQ_a, nQ_d, nQ_cj, nQ_cbj
+    return nQ_a, nQ_d, nQ_cj, nQ_cbj, nQ_th
 
 
 def I_1(Q_th, Nj, Q_cj, rho_j, rho_a, Q_v, Q_a,
@@ -216,12 +230,13 @@ def I_2(Ny, Nx, Nj, Q_o, Q_th, Q_cj):
     return nQ_th, nQ_cj
 
 
-def I_3(g, Nj, Q_cj, rho_j, rho_a, Ny, Nx, Q_a, Q_th, Q_o, f, a):  # Should be done
+def I_3(g, Nj, Q_cj, rho_j, rho_a, Ny, Nx, Q_a, Q_th, Q_o, f, a, Q_v):
     '''
     Update of turbidity flow velocity (speed!). IN: Q_a,Q_th,Q_o,Q_cj. OUT: Q_v.
     '''
     nb_index = [[-1, 0], [-1, 1], [0, 1], [1, 0], [1, -1], [0, -1]]
     nQ_v = np.zeros((Ny, Nx), dtype=np.double, order='C')
+    Q_v_is_zero_two_timesteps = np.zeros((Ny, Nx), dtype=np.int, order='C')
     for ii in range(1, Ny-1):
         for jj in range(1, Nx - 1):
             if (Q_th[ii,jj] > 0):
@@ -246,8 +261,10 @@ def I_3(g, Nj, Q_cj, rho_j, rho_a, Ny, Nx, Q_a, Q_th, Q_o, f, a):  # Should be d
                     nQ_v[ii,jj] = U/(6 - num_removed)
                 if np.isnan(nQ_v[ii, jj]):
                     raise ValueError
+            if (Q_v[ii, jj] == 0) and (nQ_v[ii, jj] == 0):
+                Q_v_is_zero_two_timesteps[ii, jj] = 1
 
-    return nQ_v
+    return nQ_v, Q_v_is_zero_two_timesteps
 
 
 def I_4(Q_d, Ny, Nx, Nj, dx, reposeAngle, Q_cbj, Q_a, seaBedDiff):  # Toppling rule
