@@ -118,7 +118,7 @@ def T_2(Ny, Nx, Nj, rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th
                 nQ_d[ii, jj] = Q_d[ii, jj] + np.sum(Q_cj[ii, jj,:]) * Q_th[ii, jj]
 
                 for kk in range(Nj):
-                    nQ_cbj[ii, jj, kk] = Q_cbj[ii, jj, kk] + Q_cj[ii, jj] * Q_th[ii, jj]
+                    nQ_cbj[ii, jj, kk] = Q_cbj[ii, jj, kk] + Q_cj[ii, jj, kk] * Q_th[ii, jj]
                     nQ_cj[ii, jj, kk] = 0
                 nQ_th[ii, jj] = 0
 

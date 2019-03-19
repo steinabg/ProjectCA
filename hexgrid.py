@@ -4,7 +4,7 @@ plt.style.use('bmh')
 import numpy as np
 # from scipy.ndimage import imread
 import mathfunk as ma
-import transition_functions as tra
+import transition_functions_cy as tra
 import numba as nb
 from mpldatacursor import datacursor
 

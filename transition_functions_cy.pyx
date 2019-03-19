@@ -1,5 +1,6 @@
 # distutils: language = c++
 import numpy as np
+cimport numpy as cnp
 import T1functions as T1
 import T2functions as T2
 import mathfunk as ma
@@ -71,9 +72,9 @@ cdef double cstd(double *arr, int length):
 @cython.cdivision(True)
 @cython.boundscheck(False) # turn off bounds-checking for entire function
 @cython.wraparound(False)  # turn off negative index wrapping for entire function
-def T_2(int Ny,int Nx,int  Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,double g,double c_D,double[:,:] Q_v,
+def T_2(int Ny,int Nx, Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,double g,double c_D,double[:,:] Q_v,
         double[:] v_sj,double[:,:,:] Q_cj,double[:,:,:] Q_cbj,double[:,:] Q_th,double[:,:] Q_d,
-        double dt,double porosity,double[:,:] Q_a, Q_v_is_zero_two_timesteps):
+        double dt,double porosity,double[:,:] Q_a,int[:,:] Q_v_is_zero_two_timesteps):
     '''
     This function updates Q_a,Q_d,Q_cj and Q_cbj. According to erosion and deposition rules.\
     IN: Q_a,Q_th,Q_cj,Q_cbj,Q_v. OUT:
@@ -86,15 +87,17 @@ def T_2(int Ny,int Nx,int  Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,do
     nQ_th = np.zeros((Ny, Nx), dtype=np.double, order='C')
     cdef double[:,:] nQ_a_view = nQ_a
     cdef double[:,:] nQ_d_view = nQ_d
+    cdef double[:,:] nQ_th_view = nQ_th
     cdef double[:,:,:] nQ_cj_view = nQ_cj
     cdef double[:,:,:] nQ_cbj_view = nQ_cbj
-    cdef int num_cells = 0
+    cdef int num_cells = 0, ii, jj, kk, ll, invalid
     cdef int num_cells_invalid = 0
-    cdef double *log_2_D_sj, sum_q_cj, sediment_mean_size, kappa, *f_sj, f_sj_sum
+    cdef double *log_2_D_sj, sum_q_cj, sediment_mean_size, kappa, *f_sj, f_sj_sum, q_cj_sum
     cdef double fall_velocity_dimless, near_bed_c, particle_reynolds, Z_mj, erosion_rate
     for ii in range(Ny):
         for jj in range(Nx):
-            nQ_th[ii,jj] = Q_th[ii,jj]
+            nQ_th_view[ii,jj] = Q_th[ii,jj]
+            invalid = 0
             if (Q_th[ii, jj] > 0) and (Q_v[ii, jj] > 0) and (ii > 0) and (ii < Ny - 1) and (jj > 0) and (jj < Nx - 1):
                 num_cells += 1
                 # Deposition initialization:
@@ -152,11 +155,27 @@ def T_2(int Ny,int Nx,int  Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,do
                     # If this operation leads to unphysical state, undo the rule:
                     if (nQ_cj_view[ii,jj,kk] < 0) or (cisnan(nQ_cj_view[ii,jj,kk])):
                         num_cells_invalid += 1
-                        nQ_a_view[ii, jj] = Q_a[ii, jj]
-                        nQ_d_view[ii, jj] = Q_d[ii, jj]
-                        for kk in range(Nj):
-                            nQ_cj_view[ii, jj, kk] = Q_cj[ii, jj, kk]
-                            nQ_cbj_view[ii, jj, kk] = Q_cbj[ii, jj, kk]
+                        invalid = 1
+                        break
+                if(invalid == 1):
+                    nQ_a_view[ii, jj] = Q_a[ii, jj]
+                    nQ_d_view[ii, jj] = Q_d[ii, jj]
+                    for ll in range(Nj):
+                        nQ_cj_view[ii, jj, ll] = Q_cj[ii, jj, ll]
+                        nQ_cbj_view[ii, jj, ll] = Q_cbj[ii, jj, ll]
+
+
+            # If (interior cell) && (velocity has been zero for two time steps): sediment everything; remove t current
+            elif (Q_v_is_zero_two_timesteps[ii, jj] == 1) and (Q_v[ii, jj] > 0) and (ii > 0) and (ii < Ny - 1) and (jj > 0) and (jj < Nx - 1):
+                q_cj_sum = 0
+                for kk in range(Nj):
+                    nQ_cbj_view[ii, jj, kk] = Q_cbj[ii, jj, kk] + Q_cj[ii, jj, kk] * Q_th[ii, jj]
+                    nQ_cj_view[ii, jj, kk] = 0
+                    q_cj_sum += Q_cj[ii,jj, kk]
+                nQ_th_view[ii, jj] = 0
+                nQ_a_view[ii, jj] = Q_a[ii, jj] + q_cj_sum * Q_th[ii, jj]
+                nQ_d_view[ii, jj] = Q_d[ii, jj] + q_cj_sum * Q_th[ii, jj]
+
 
 
             else:
@@ -322,6 +341,7 @@ def I_3(double g,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,int Ny,int Nx,
     nb_index[5][:] = [0, -1]
     nQ_v = np.zeros((Ny, Nx), dtype=np.double, order='C')
     Q_v_is_zero_two_timesteps = np.zeros((Ny, Nx), dtype=np.int, order='C')
+    cdef int [:,:] Q_v_is_zero_two_timesteps_view = Q_v_is_zero_two_timesteps
     cdef double[:,:] nQ_v_view = nQ_v
     cdef int ii, jj, nb_ii, nb_jj, num_removed
     cdef double U, Q_cj_sum, g_prime, slope
@@ -349,6 +369,8 @@ def I_3(double g,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,int Ny,int Nx,
                     nQ_v_view[ii,jj] = U/(6 - num_removed)
                 if cisnan(nQ_v_view[ii, jj]):
                     raise ValueError
+            if (Q_v[ii, jj] == 0) and (nQ_v_view[ii, jj] == 0):
+                Q_v_is_zero_two_timesteps_view[ii, jj] = 1
 
     return nQ_v, Q_v_is_zero_two_timesteps
 
