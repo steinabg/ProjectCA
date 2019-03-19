@@ -72,7 +72,7 @@ cdef double cstd(double *arr, int length):
 @cython.cdivision(True)
 @cython.boundscheck(False) # turn off bounds-checking for entire function
 @cython.wraparound(False)  # turn off negative index wrapping for entire function
-def T_2(int Ny,int Nx, Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,double g,double c_D,double[:,:] Q_v,
+def T_2(int Ny,int Nx,int Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,double g,double c_D,double[:,:] Q_v,
         double[:] v_sj,double[:,:,:] Q_cj,double[:,:,:] Q_cbj,double[:,:] Q_th,double[:,:] Q_d,
         double dt,double porosity,double[:,:] Q_a,int[:,:] Q_v_is_zero_two_timesteps):
     '''
@@ -117,7 +117,7 @@ def T_2(int Ny,int Nx, Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,double
                     log_2_D_sj[kk] = clog2(D_sj[kk])
 
                 kappa = 1 - 0.288 * cstd(log_2_D_sj, Nj)
-                sediment_mean_size = sediment_mean_size ** (1 / Nj) / sum_q_cj
+                sediment_mean_size = sediment_mean_size ** (1.0 / Nj) / sum_q_cj
                 # f_sj = np.zeros((Nj), dtype=np.double, order='C')
                 f_sj = <double*> calloc(Nj,sizeof(double))
                 f_sj_sum = 0
@@ -340,7 +340,7 @@ def I_3(double g,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,int Ny,int Nx,
     nb_index[4][:] = [1, -1]
     nb_index[5][:] = [0, -1]
     nQ_v = np.zeros((Ny, Nx), dtype=np.double, order='C')
-    Q_v_is_zero_two_timesteps = np.zeros((Ny, Nx), dtype=np.int, order='C')
+    Q_v_is_zero_two_timesteps = np.zeros((Ny, Nx), dtype=np.intc, order='C')
     cdef int [:,:] Q_v_is_zero_two_timesteps_view = Q_v_is_zero_two_timesteps
     cdef double[:,:] nQ_v_view = nQ_v
     cdef int ii, jj, nb_ii, nb_jj, num_removed

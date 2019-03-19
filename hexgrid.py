@@ -61,7 +61,7 @@ class Hexgrid():
             self.Q_a = self.Q_d.copy()  # Bathymetry legges til Q_a i self.setBathymetry(terrain)
         # print(self.Q_a)
         self.Q_o = np.zeros((self.Ny, self.Nx, 6),order='C', dtype=np.double)  # Density current outflow
-        self.Q_v_is_zero_two_timesteps = np.zeros((self.Ny, self.Nx), dtype=np.int, order='C') # update in I3 read in T2
+        self.Q_v_is_zero_two_timesteps = np.zeros((self.Ny, self.Nx), dtype=np.intc, order='C') # update in I3 read in T2
 
         ################### Set Initial conditions #####################
         if ICstates is not None: self.set_substate_ICs(ICstates)
