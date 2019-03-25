@@ -268,16 +268,17 @@ def I_3(g, Nj, Q_cj, rho_j, rho_a, Ny, Nx, Q_a, Q_th, Q_o, f, a, Q_v):
 
 
 def I_4(Q_d, Ny, Nx, Nj, dx, reposeAngle, Q_cbj, Q_a, seaBedDiff):  # Toppling rule
-    nQ_d = np.zeros((Ny,Nx), dtype=np.double, order='C')
-    nQ_a = np.zeros((Ny,Nx), dtype=np.double, order='C')
-    nQ_cbj = np.zeros((Ny,Nx, Nj), dtype=np.double, order='C')
+    # nQ_d = np.zeros((Ny,Nx), dtype=np.double, order='C')
+    # nQ_a = np.zeros((Ny,Nx), dtype=np.double, order='C')
+    # nQ_cbj = np.zeros((Ny,Nx, Nj), dtype=np.double, order='C')
+    nQ_d = Q_d.copy()
+    nQ_a = Q_a.copy()
+    nQ_cbj = Q_cbj.copy()
 
     nb_index = [[-1, 0], [-1, 1], [0, 1], [1, 0], [1, -1], [0, -1]]
     for ii in range(Ny):
         for jj in range(Nx):
             if (Q_d[ii,jj] > 0) and (ii > 0) and (ii < Ny - 1) and (jj > 0) and (jj < Nx - 1):
-                nQ_d[ii, jj] += Q_d[ii, jj]
-                nQ_a[ii, jj] += Q_a[ii, jj]
                 num_recv = 0
                 give_dir = np.zeros((6),np.int, order='C')
                 diff = np.zeros((6), dtype=np.double, order='C')
@@ -298,23 +299,17 @@ def I_4(Q_d, Ny, Nx, Nj, dx, reposeAngle, Q_cbj, Q_a, seaBedDiff):  # Toppling r
                         if frac > 0.5:
                             frac = 0.5
                         deltaS = Q_d[ii,jj] * frac/num_recv
-                        nQ_d[nb_ii,nb_jj] += Q_d[nb_ii, nb_jj] + deltaS
-                        nQ_a[nb_ii,nb_jj] += Q_a[nb_ii, nb_jj] + deltaS
+
+                        for ll in range(Nj):
+                            nQ_cbj[nb_ii, nb_jj, ll] = (nQ_d[nb_ii, nb_jj] * nQ_cbj[nb_ii, nb_jj, ll] +
+                                                       nQ_cbj[ii,jj, ll] * deltaS) / (nQ_d[nb_ii, nb_jj] + deltaS)
+
+                        nQ_d[nb_ii,nb_jj] += deltaS # Only add change here!
+                        nQ_a[nb_ii,nb_jj] += deltaS
 
                         nQ_d[ii,jj] -= deltaS
                         nQ_a[ii,jj] -= deltaS
 
-                        for ll in range(Nj):
-                            nQ_cbj[nb_ii, nb_jj, ll] = (Q_d[nb_ii, nb_jj] * Q_cbj[nb_ii, nb_jj, ll] +
-                                                       Q_cbj[ii,jj, ll] * deltaS) / nQ_d[nb_ii, nb_jj]
-                else:
-                    for kk in range(Nj):
-                        nQ_cbj[ii, jj, kk] = Q_cbj[ii, jj, kk]
-            else:
-                nQ_d[ii, jj] = Q_d[ii, jj]
-                nQ_a[ii, jj] = Q_a[ii, jj]
-                for kk in range(Nj):
-                    nQ_cbj[ii, jj, kk] = Q_cbj[ii, jj, kk]
 
 
 

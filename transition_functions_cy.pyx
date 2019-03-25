@@ -397,9 +397,15 @@ def I_4(double[:,:] Q_d,int Ny,int Nx,int Nj,double dx,double reposeAngle,double
     nb_index[5][:] = [0, -1]
     for ii in range(Ny):
         for jj in range(Nx):
+            nQ_d_view[ii, jj] = Q_d[ii, jj]
+            nQ_a_view[ii, jj] = Q_a[ii, jj]
+            for kk in range(Nj):
+                nQ_cbj_view[ii, jj, kk] = Q_cbj[ii, jj, kk]
+
+
+    for ii in range(Ny):
+        for jj in range(Nx):
             if (Q_d[ii,jj] > 0) and (ii > 0) and (ii < Ny - 1) and (jj > 0) and (jj < Nx - 1):
-                nQ_d_view[ii, jj] += Q_d[ii, jj]
-                nQ_a_view[ii, jj] += Q_a[ii, jj]
                 num_recv = 0
                 # give_dir = np.zeros((6),np.int, order='C')
                 give_dir = <int*> calloc(6, sizeof(int))
@@ -422,23 +428,17 @@ def I_4(double[:,:] Q_d,int Ny,int Nx,int Nj,double dx,double reposeAngle,double
                         if frac > 0.5:
                             frac = 0.5
                         deltaS = Q_d[ii,jj] * frac/num_recv
-                        nQ_d_view[nb_ii,nb_jj] += Q_d[nb_ii, nb_jj] + deltaS
-                        nQ_a_view[nb_ii,nb_jj] += Q_a[nb_ii, nb_jj] + deltaS
+
+                        for ll in range(Nj):
+                            nQ_cbj_view[nb_ii, nb_jj, ll] = (nQ_d_view[nb_ii, nb_jj] * nQ_cbj_view[nb_ii, nb_jj, ll] +
+                                                       nQ_cbj_view[ii,jj, ll] * deltaS) / (nQ_d_view[nb_ii, nb_jj] + deltaS)
+
+                        nQ_d_view[nb_ii,nb_jj] += deltaS
+                        nQ_a_view[nb_ii,nb_jj] += deltaS
 
                         nQ_d_view[ii,jj] -= deltaS
                         nQ_a_view[ii,jj] -= deltaS
 
-                        for ll in range(Nj):
-                            nQ_cbj_view[nb_ii, nb_jj, ll] = (Q_d[nb_ii, nb_jj] * Q_cbj[nb_ii, nb_jj, ll] +
-                                                       Q_cbj[ii,jj, ll] * deltaS) / nQ_d_view[nb_ii, nb_jj]
-                else:
-                    for kk in range(Nj):
-                        nQ_cbj_view[ii, jj, kk] = Q_cbj[ii, jj, kk]
-            else:
-                nQ_d_view[ii, jj] = Q_d[ii, jj]
-                nQ_a_view[ii, jj] = Q_a[ii, jj]
-                for kk in range(Nj):
-                    nQ_cbj_view[ii, jj, kk] = Q_cbj[ii, jj, kk]
 
 
 
