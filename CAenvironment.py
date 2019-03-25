@@ -64,6 +64,10 @@ class CAenvironment():
             self.Q_d = np.zeros((self.Ny,self.Nx))
         self.Q_o = np.zeros((self.Ny, self.Nx, 6))  # Density current outflow
 
+        # Initial sand cover
+        self.Q_cbj[1:-1, 1:-1, 0] = parameters['q_cbj[interior, 0]']  # 1
+        self.Q_d[1:-1, 1:-1] = parameters['q_d[interior]']  # 1.0
+
         # Source area
         if (parameters['x'] is not None) and (parameters['y'] is not None):
             # if global_grid is True:
@@ -77,9 +81,6 @@ class CAenvironment():
                 self.Q_cj[self.y, self.x, particle_type] = parameters[parameter_string1]  # 0.003
                 self.Q_cbj[self.y, self.x, particle_type] = parameters[parameter_string2]  # 1
 
-        # Initial sand cover
-        self.Q_cbj[1:-1, 1:-1, 0] = parameters['q_cbj[interior, 0]']  # 1
-        self.Q_d[1:-1, 1:-1] = parameters['q_d[interior]']  # 1.0
 
         self.terrain = parameters['terrain']
 

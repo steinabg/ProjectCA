@@ -186,12 +186,15 @@ def I_1(Q_th, Nj, Q_cj, rho_j, rho_a, Q_v, Q_a,
                 f = np.zeros((6), dtype=np.double, order='C')
                 factor_n = Q_th[ii, jj] / r
                 factor_r = np.sqrt(2 * r * g_prime) * dt / (dx / 2)
+                factor_r = factor_r if factor_r <= 1.0 else 1.0
 
                 for dir in A:
                     f[dir] = Average - nb_h[dir]
                     nQ_o[ii, jj, dir] = f[dir] * factor_n * factor_r
                     if (np.isnan(nQ_o[ii,jj,dir])):
                         raise ValueError
+                if sum(nQ_o[ii, jj, :]) > Q_th[ii,jj]:
+                    raise ValueError
 
     return nQ_o
 

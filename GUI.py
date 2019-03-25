@@ -262,12 +262,12 @@ class Ui_MainWindow(object):
         parameters['iterations'] = int(self.numiterationsEdit.text())
 
         # This terrain value will overwrite the value in .ini file
-        if self.rupertBtn.isChecked():
-            parameters['terrain'] = 'rupert'
-        elif self.ShallowBtn.isChecked():
-            parameters['terrain'] = 'river_shallow'
-        else:
-            parameters['terrain'] = 'river'
+        # if self.rupertBtn.isChecked():
+        #     parameters['terrain'] = 'rupert'
+        # elif self.ShallowBtn.isChecked():
+        #     parameters['terrain'] = 'river_shallow'
+        # else:
+        #     parameters['terrain'] = 'river'
 
         parameters['velocity'] = 0
         if self.velocityManBtn.isChecked():

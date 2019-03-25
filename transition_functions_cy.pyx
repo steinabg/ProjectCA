@@ -205,7 +205,10 @@ def I_1(double[:,:] Q_th,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,double
     cdef double [:,:,:] nQ_o_view = nQ_o
     cdef int ii,jj,dir, nb_i, nb_j, zz, index
     cdef list
-    cdef double Average, r, h_k, g_prime, height_center, *nb_h, *f, factor_n, factor_r, sum_nb_h_in_A
+    cdef double Average, r, h_k, g_prime, height_center, Q_o_sum
+    cdef double *nb_h
+    cdef double *f
+    cdef double factor_n, factor_r, sum_nb_h_in_A
     # nb_index = [[-1,0],[-1,1],[0,1],[1,0],[1,-1],[0,-1]]
     cdef int nb_index[6][2]
     nb_index[0][:] = [-1, 0]
@@ -260,11 +263,17 @@ def I_1(double[:,:] Q_th,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,double
                 f = <double*> calloc(6,sizeof(double))
                 factor_n = Q_th[ii,jj]/r
                 factor_r = csqrt(2*r*g_prime)*dt/(dx/2)
-
+                factor_r = factor_r if factor_r <= 1.0 else 1.0
+                Q_o_sum = 0.0
                 for zz in range(len(A)):
                     dir = A[zz]
                     f[dir] = Average - nb_h[dir]
                     nQ_o_view[ii,jj,dir] = f[dir] * factor_n * factor_r
+                    Q_o_sum += nQ_o_view[ii,jj,dir]
+                    if cisnan(nQ_o_view[ii, jj, dir]):
+                        raise ValueError
+                if Q_o_sum > Q_th[ii, jj]:
+                    raise ValueError
 
     return nQ_o
 

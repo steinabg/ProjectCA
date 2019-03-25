@@ -50,6 +50,24 @@ def generate_rupert_inlet_bathymetry(repose_angle,dx, Ny=200, Nx=200, channel_am
 
     return X, cross_sectionY
 
+def gen_sloped_plane(Ny: int, Nx: int, dx: float, angle: float):
+    '''
+    :param Ny: Number of cells in y direction
+    :param Nx: Number of cells in x direction
+    :param dx: Intercellular distance
+    :param angle: Angle of plane
+    :return: Ny x Nx numpy array with height values
+
+    Generates a plane where the height difference between cell rows\
+    are defined by dx and angle. That is assuming hexagonal cells with\
+    pointy heads.
+    '''
+
+    vec = np.arange(Ny, dtype=np.double)
+    vec = vec * np.sqrt(3) / 2 * dx * np.sin(angle)
+    vec = -np.array([vec, ] * Nx).transpose() + np.amax(vec)
+    return vec
+
 def calc_settling_speed(D_sg: np.ndarray, rho_a, rho_j,g,nu):
     '''
 

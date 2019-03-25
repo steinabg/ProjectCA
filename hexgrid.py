@@ -363,6 +363,8 @@ class Hexgrid():
                 # self.Q_a += mat['X']
                 temp, junk = ma.generate_rupert_inlet_bathymetry(self.reposeAngle, self.dx, self.Ny,self.Nx)
                 self.Q_a += np.transpose(temp)
+            elif terrain == 'sloped_plane':
+                self.Q_a += ma.gen_sloped_plane(self.Ny, self.Nx, self.dx, np.arctan(0.08))
 
     def calc_bathymetryDiff(self):
         with np.errstate(invalid='ignore'):
