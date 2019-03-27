@@ -127,7 +127,7 @@ class CAenvironment():
 
     def printSubstates(self, i):
         fig = plt.figure(figsize=(10, 6))
-        ax = [fig.add_subplot(2, 2, i, aspect='equal') for i in range(1, 5)]
+        ax = [fig.add_subplot(3, 2, i, aspect='equal') for i in range(1, 7)]
         ind = np.unravel_index(np.argmax(self.grid.Q_th, axis=None), self.grid.Q_th.shape)
 
         points = ax[0].scatter(self.grid.X[:, :, 0].flatten(), self.grid.X[:, :, 1].flatten(), marker='h',
@@ -151,6 +151,19 @@ class CAenvironment():
                                c=self.grid.Q_d[1:-1, 1:-1].flatten())
         plt.colorbar(points, shrink=0.6, ax=ax[3])
         ax[3].set_title('Q_d[1:-1,1:-1]')
+
+        try:
+            points = ax[4].scatter(self.grid.X[1:-1, 1:-1, 0].flatten(), self.grid.X[1:-1, 1:-1, 1].flatten(), marker='h',
+                                   c=self.grid.Q_cbj[1:-1, 1:-1,1].flatten())
+            plt.colorbar(points, shrink=0.6, ax=ax[4])
+            ax[4].set_title('Q_cbj[1:-1,1:-1,1]')
+
+            points = ax[5].scatter(self.grid.X[1:-1, 1:-1, 0].flatten(), self.grid.X[1:-1, 1:-1, 1].flatten(), marker='h',
+                                   c=self.grid.Q_cj[1:-1, 1:-1, 1].flatten())
+            plt.colorbar(points, shrink=0.6, ax=ax[5])
+            ax[5].set_title('Q_cj[1:-1,1:-1,1]')
+        except:
+            pass
         plt.tight_layout()
         s1 = str(self.terrain) if self.terrain is None else self.terrain
         plt.savefig(os.path.join('./Data/','full_%03ix%03i_%s_%03i_thetar%0.0f.png' % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']) ),
@@ -159,13 +172,29 @@ class CAenvironment():
 
         # Plot the 1D substates along the bottom of the channel
         fig = plt.figure(figsize=(10, 6))
-        ax = [fig.add_subplot(2, 2, i, aspect='auto') for i in range(1, 4)]
-        ax[0].plot(np.arange(len(self.ch_bot_thickness)), self.ch_bot_thickness)
+        ax = [fig.add_subplot(2, 2, i, aspect='auto') for i in range(1, 5)]
+        lnns1 = ax[0].plot(np.arange(len(self.ch_bot_thickness)), self.ch_bot_thickness, label='Q_th')
         ax[0].plot((5, 5), (0, 3), 'k-')
         ax[0].set_title('1D Q_th, time step = %03i' % (i+1))
         ax[0].set_ylim([0, 3])
         ax[0].set_ylabel('Q_{th}')
-        for xx in range(0,3):
+        ax3 = ax[0].twinx()
+        lnns2 = []
+        for ii in range(self.parameters['nj']):
+            lnns2.append(ax3.plot(np.arange(len(self.ch_bot_speed)), self.ch_bot_thickness_cons[ii], linestyle='--',
+                                  label='Q_cbj[y,x,{0}]'.format(ii)))
+        # lnns2 = ax3.plot(np.arange(len(ch_bot_speed)), ch_bot_thickness_cons0, color='tab:red', linestyle='--', label='Q_cbj[y,x,0]')
+        # lnns3 = ax3.plot(np.arange(len(ch_bot_speed)), ch_bot_thickness_cons1, color='tab:cyan', linestyle='-.', label='Q_cbj[y,x,1]')
+        lnns = lnns1
+        for z in range(len(lnns2)):
+            lnns += lnns2[z]
+        labbs = [l.get_label() for l in lnns]
+        ax[0].legend(lnns, labbs, loc=0)
+        maxconc = np.max([np.amax(self.ch_bot_thickness_cons)])
+        upper = (0.1 * (maxconc // 0.1) + 0.1)
+        ax3.set_ylim([0, upper])
+        ax3.set_ylabel('Concentration')
+        for xx in range(0, 3):
             ax[xx].set_xlabel('y: Channel axis')
         # plt.savefig('ch_bot_thickness_%03i.png' %(i+1), bbox_inches='tight',pad_inches=0,dpi=240)
 
@@ -183,9 +212,9 @@ class CAenvironment():
 
         # plt.figure(figsize=(10, 6))
         ax[1].plot(np.arange(len(self.ch_bot_speed)), self.ch_bot_speed)
-        ax[1].plot((5, 5),(0, 1), 'k-')
-        ax[1].set_title('1D speed, time step = %03i' % (i+1))
-        ax[1].set_ylim([0, 1])
+        ax[1].plot((5, 5), (0, 0.2), 'k-')
+        ax[1].set_title('1D speed, time step = %03i' % (i + 1))
+        ax[1].set_ylim([0, 0.2])
         ax[1].set_ylabel('Q_{v}')
         # plt.savefig('ch_bot_speed_%03i.png' %(i+1), bbox_inches='tight',pad_inches=0,dpi=240)
 
@@ -195,6 +224,26 @@ class CAenvironment():
         ax[2].set_title('Sum 1D outflow, time step = %03i' % (i + 1))
         ax[2].set_ylim([0, 2])
         ax[2].set_ylabel('sum(Q_{o}[y,x])')
+
+        lns1 = ax[3].plot(np.arange(len(self.ch_bot_speed)), self.ch_bot_sediment, label='Q_{d}')
+        # ax[3].plot((5, 5), (0, 2), 'k-')
+        ax[3].set_title('Sediment, time step = %03i' % (i + 1))
+        # ax[3].set_ylim([0, 2])
+        ax[3].set_ylabel('Q_{d}[y,x])')
+        ax2 = ax[3].twinx()
+        lns2 = []
+        for ii in range(self.parameters['nj']):
+            lns2.append(
+                ax2.plot(np.arange(len(self.ch_bot_speed)), self.ch_bot_sediment_cons[ii], label='Q_cbj[y,x,{0}]'.format(ii)))
+        # lns2 = ax2.plot(np.arange(len(ch_bot_speed)), ch_bot_sediment_cons0, color='tab:red', label='Q_cbj[y,x,0]')
+        # lns3 = ax2.plot(np.arange(len(ch_bot_speed)), ch_bot_sediment_cons1, color='tab:cyan', label='Q_cbj[y,x,1]')
+        lns = lns1
+        for z in range(len(lns2)):
+            lns += lns2[z]
+        labs = [l.get_label() for l in lns]
+        ax[3].legend(lns, labs, loc=0)
+        ax2.set_ylim([0, 1])
+        ax2.set_ylabel('Concentration')
         plt.tight_layout()
         plt.savefig('./Data/ch_bot_%03i.png' % (i + 1), bbox_inches='tight', pad_inches=0, dpi=240)
 
@@ -290,9 +339,15 @@ class CAenvironment():
 
 
         # Plot sub states in channel center
-        # self.ch_bot_thickness.append(self.grid.Q_th[self.grid.bot_indices])
+        bottom_indices = self.grid.bot_indices
         self.ch_bot_thickness = [self.grid.Q_th[self.grid.bot_indices[i]] for i in range(len(self.grid.bot_indices))]
         self.ch_bot_speed = [self.grid.Q_v[self.grid.bot_indices[i]] for i in range(len(self.grid.bot_indices))]
+        self.ch_bot_thickness_cons = []
+        self.ch_bot_sediment_cons = []
+        for jj in range(self.parameters['nj']):
+            self.ch_bot_thickness_cons.append([self.grid.Q_cj[bottom_indices[i] + (jj,)] for i in range(len(bottom_indices))])
+            self.ch_bot_sediment_cons.append([self.grid.Q_cbj[bottom_indices[i] + (jj,)] for i in range(len(bottom_indices))])
+        self.ch_bot_sediment = [self.grid.Q_d[bottom_indices[i]] for i in range(len(bottom_indices))]
         self.ch_bot_outflow = [sum(self.grid.Q_o[self.grid.bot_indices[i]]) for i in range(len(self.grid.bot_indices))]
 
 
