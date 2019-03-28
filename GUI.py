@@ -17,7 +17,7 @@ sys.path.append('..')
 class Ui_MainWindow(object):
 
 
-    def loadData(self, select=1, fileName='gui_default_config.ini'):
+    def loadData(self, select=1, fileName='./Config/gui_default_config.ini'):
         if select == 1:
             fileName, _ = QtWidgets.QFileDialog.getOpenFileName(None, "Import configuration file", "","(*.ini)")
 
@@ -412,6 +412,8 @@ class Ui_MainWindow(object):
 
 if __name__ == "__main__":
     import sys
+
+    np.seterr(all='raise')
     app = QtWidgets.QApplication(sys.argv)
     MainWindow = QtWidgets.QMainWindow()
     ui = Ui_MainWindow()

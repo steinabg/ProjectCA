@@ -19,7 +19,7 @@ Q_o = 0
 
 
 # theta_r = 80
-def import_parameters(filename = 'test.ini'):
+def import_parameters(filename = './Config/test.ini'):
     from configparser import ConfigParser, ExtendedInterpolation
     import numpy as np # Must be here for imported expressions to be evaluated
 
