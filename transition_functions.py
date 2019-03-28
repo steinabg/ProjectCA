@@ -239,7 +239,7 @@ def I_3(g, Nj, Q_cj, rho_j, rho_a, Ny, Nx, Q_a, Q_th, Q_o, f, a, Q_v):
     '''
     nb_index = [[-1, 0], [-1, 1], [0, 1], [1, 0], [1, -1], [0, -1]]
     nQ_v = np.zeros((Ny, Nx), dtype=np.double, order='C')
-    Q_v_is_zero_two_timesteps = np.zeros((Ny, Nx), dtype=np.int, order='C')
+    Q_v_is_zero_two_timesteps = np.zeros((Ny, Nx), dtype=np.intc, order='C')
     for ii in range(1, Ny-1):
         for jj in range(1, Nx - 1):
             if (Q_th[ii,jj] > 0):

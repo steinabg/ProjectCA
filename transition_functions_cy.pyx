@@ -139,7 +139,7 @@ def T_2(int Ny,int Nx,int Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,dou
                     else:
                         raise Exception('Eq. (40) (Salles) not defined for R_pj = {0}'.format(particle_reynolds))
                     Z_mj = kappa * csqrt(c_D * Q_v[ii, jj]) * function_reynolds / fall_velocity_dimless
-                    erosion_rate = (1.3 * 10 ** (-7) * Z_mj ** (5)) / (1 + 4.3 * 10 ** (-7) * Z_mj ** (5))
+                    erosion_rate = (1.3 * 1e-7 * Z_mj ** (5)) / (1 + 4.3 * 1e-7 * Z_mj ** (5))
 
                     # Exner equation:
                     f_sj[kk] = deposition_rate - erosion_rate * Q_cbj[ii, jj, kk]

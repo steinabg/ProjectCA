@@ -157,12 +157,10 @@ class Hexgrid():
         self.sanityCheck()
         # self.printSubstates_to_screen('I_4')
 
-    def time_step_compare_cy_py(self, global_grid=True, tol=1e-8):
+    def time_step_compare_cy_py(self, global_grid=True, tol=1e-12):
         # Load unloaded version of transition function file
-        if 'transition_functions' not in sys.modules:
-            import transition_functions as tra2
-        elif 'transition_functions_cy' not in sys.modules:
-            import transition_functions_cy as tra2
+        import transition_functions as tra
+        import transition_functions_cy as tra2
 
         if global_grid is True:
             self.dt = self.calc_dt()
@@ -208,7 +206,7 @@ class Hexgrid():
 
         self.Q_o = tra.I_1(self.Q_th, self.Nj, self.Q_cj, self.rho_j, self.rho_a, self.Q_v, self.Q_a,
                            self.Ny, self.Nx, self.dx, self.p_f, self.p_adh, self.dt, self.g)
-        ma.compare_ndarray(t_Q_o, self.Q_o)
+        ma.compare_ndarray(t_Q_o, self.Q_o, tol)
         self.sanityCheck()
 
         t_Q_th, t_Q_cj = tra2.I_2(self.Ny, self.Nx, self.Nj, self.Q_o, self.Q_th, self.Q_cj)
