@@ -393,16 +393,16 @@ class CAenvironment():
 
     def writeToTxt(self, i):
         s1 = str(self.terrain) if self.terrain is None else self.terrain
-        with open('full_%03ix%03i_%s_%03i_thetar%0.0f_time.txt' % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']), 'w') as f:
+        with open('./Data/full_%03ix%03i_%s_%03i_thetar%0.0f_time.txt' % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']), 'w') as f:
             for item in self.time:
                 f.write("%s\n" % item)
 
         savemass = np.sum(self.mass, axis=(1, 2, 3))
-        with open('full_%03ix%03i_%s_%03i_thetar%0.0f_mass.txt' % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']), 'w') as f:
+        with open('./Data/full_%03ix%03i_%s_%03i_thetar%0.0f_mass.txt' % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']), 'w') as f:
             for item in savemass:
                 f.write("%s\n" % item)
 
-        with open('full_%03ix%03i_%s_%03i_thetar%0.0f_maxdensity.txt' % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']),
+        with open('./Data/full_%03ix%03i_%s_%03i_thetar%0.0f_maxdensity.txt' % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']),
                   'w') as f:
             for item in self.density:
                 f.write("%s\n" % item)
@@ -455,5 +455,5 @@ class CAenvironment():
         ax3.set_xlabel('$n$', fontsize=fontsize)
 
         s1 = str(self.terrain) if self.terrain is None else self.terrain
-        plt.savefig('full_%03ix%03i_%s_%03i_thetar%0.0f_stability.png' % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']),
+        plt.savefig('./Data/full_%03ix%03i_%s_%03i_thetar%0.0f_stability.png' % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']),
                     bbox_inches='tight', pad_inches=0)
