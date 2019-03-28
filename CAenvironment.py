@@ -122,8 +122,12 @@ class CAenvironment():
 
 
 
-    def CAtimeStep(self):
-        self.grid.time_step(self.global_grid)
+    def CAtimeStep(self, compare_cy_py=False):
+        if compare_cy_py is False:
+            # Normal time step
+            self.grid.time_step(self.global_grid)
+        elif compare_cy_py is True:
+            self.grid.time_step_compare_cy_py(self.global_grid)
 
     def printSubstates(self, i):
         fig = plt.figure(figsize=(10, 6))

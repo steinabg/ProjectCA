@@ -1,6 +1,24 @@
 import numpy as np
 import warnings
 
+def compare_ndarray(array1: np.ndarray, array2: np.ndarray, tol):
+    assert array1.shape == array2.shape
+    array1[np.isinf(array1)] = 0
+    array2[np.isinf(array2)] = 0
+    temp = np.abs(array1 - array2)
+
+    if (((array1 - array2) > tol).sum() >= 1):
+        i = np.where(temp > 0)
+        s = "Not equal!\n"
+        for num in range(i[0].size):
+            s = s + ''.join("array1[{0},{1},{2}] = {3}, array2[{4},{5},{6}] = {7} <-- diff = {8}\n"
+                            .format(i[0][num],i[1][num],i[2][num], array1[i[0][num],i[1][num],i[2][num]],
+                                    i[0][num],i[1][num],i[2][num], array2[i[0][num],i[1][num],i[2][num]],
+                                    temp[i[0][num],i[1][num],i[2][num]]))
+        raise Exception(s)
+    else:
+        return
+
 def generate_rupert_inlet_bathymetry(repose_angle,dx, Ny=200, Nx=200, channel_amplitude=None, channel_width=None, channeldepth=None):
     # TODO Make bathymetry with varying slope. 12 deg at top according to article
     # Nx = Ny = 200

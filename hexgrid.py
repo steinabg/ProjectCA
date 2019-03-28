@@ -7,7 +7,7 @@ import mathfunk as ma
 import transition_functions_cy as tra
 import numba as nb
 from mpldatacursor import datacursor
-
+import sys # For comparing results of cy and py
 
 
 
@@ -156,6 +156,94 @@ class Hexgrid():
                                                  self.Q_a, self.seaBedDiff)  # Toppling rule
         self.sanityCheck()
         # self.printSubstates_to_screen('I_4')
+
+    def time_step_compare_cy_py(self, global_grid=True, tol=1e-8):
+        # Load unloaded version of transition function file
+        if 'transition_functions' not in sys.modules:
+            import transition_functions as tra2
+        elif 'transition_functions_cy' not in sys.modules:
+            import transition_functions_cy as tra2
+
+        if global_grid is True:
+            self.dt = self.calc_dt()
+        # Water entrainment
+        t_Q_cj, t_Q_th = tra2.T_1(self.Ny, self.Nx, self.Nj, self.Q_cj, self.rho_j, self.rho_a, self.Q_th,
+                                       self.Q_v, self.dt, self.g)
+
+        self.Q_cj, self.Q_th = tra.T_1(self.Ny, self.Nx, self.Nj, self.Q_cj, self.rho_j, self.rho_a, self.Q_th,
+                                       self.Q_v, self.dt, self.g)
+        ma.compare_ndarray(t_Q_cj,self.Q_cj, tol)
+        ma.compare_ndarray(t_Q_th,self.Q_th, tol)
+
+        self.sanityCheck()
+
+        # Erosion and deposition
+        t_Q_a, t_Q_d, t_Q_cj, t_Q_cbj, t_Q_th = tra2.T_2(self.Ny, self.Nx, self.Nj, self.rho_j,
+                                                                       self.rho_a,
+                                                                       self.D_sj, self.nu, self.g,
+                                                                       self.c_D, self.Q_v, self.v_sj, self.Q_cj,
+                                                                       self.Q_cbj,
+                                                                       self.Q_th, self.Q_d, self.dt, self.porosity,
+                                                                       self.Q_a,
+                                                                       self.Q_v_is_zero_two_timesteps)
+
+        self.Q_a, self.Q_d, self.Q_cj, self.Q_cbj, self.Q_th = tra.T_2(self.Ny, self.Nx, self.Nj, self.rho_j,
+                                                                       self.rho_a,
+                                                                       self.D_sj, self.nu, self.g,
+                                                                       self.c_D, self.Q_v, self.v_sj, self.Q_cj,
+                                                                       self.Q_cbj,
+                                                                       self.Q_th, self.Q_d, self.dt, self.porosity,
+                                                                       self.Q_a,
+                                                                       self.Q_v_is_zero_two_timesteps)
+        ma.compare_ndarray(t_Q_a[1:-1,1:-1], self.Q_a[1:-1,1:-1], tol)
+        ma.compare_ndarray(t_Q_d[1:-1,1:-1], self.Q_d[1:-1,1:-1], tol)
+        ma.compare_ndarray(t_Q_cj, self.Q_cj, tol)
+        ma.compare_ndarray(t_Q_cbj, self.Q_cbj, tol)
+        ma.compare_ndarray(t_Q_th, self.Q_th, tol)
+        self.sanityCheck()
+
+        # Turbidity c. outflows
+        t_Q_o = tra2.I_1(self.Q_th, self.Nj, self.Q_cj, self.rho_j, self.rho_a, self.Q_v, self.Q_a,
+                           self.Ny, self.Nx, self.dx, self.p_f, self.p_adh, self.dt, self.g)
+
+        self.Q_o = tra.I_1(self.Q_th, self.Nj, self.Q_cj, self.rho_j, self.rho_a, self.Q_v, self.Q_a,
+                           self.Ny, self.Nx, self.dx, self.p_f, self.p_adh, self.dt, self.g)
+        ma.compare_ndarray(t_Q_o, self.Q_o)
+        self.sanityCheck()
+
+        t_Q_th, t_Q_cj = tra2.I_2(self.Ny, self.Nx, self.Nj, self.Q_o, self.Q_th, self.Q_cj)
+
+        self.Q_th, self.Q_cj = tra.I_2(self.Ny, self.Nx, self.Nj, self.Q_o, self.Q_th, self.Q_cj)
+        ma.compare_ndarray(t_Q_th, self.Q_th, tol)
+        ma.compare_ndarray(t_Q_cj, self.Q_cj, tol)
+        self.sanityCheck()
+
+        # TC speed
+        t_Q_v, t_Q_v_is_zero_two_timesteps = tra2.I_3(self.g, self.Nj, self.Q_cj, self.rho_j, self.rho_a,
+                                                           self.Ny, self.Nx, self.Q_a,
+                                                           self.Q_th, self.Q_o, self.f, self.a,
+                                                           self.Q_v)  # Update of turbidity flow velocity
+
+        self.Q_v, self.Q_v_is_zero_two_timesteps = tra.I_3(self.g, self.Nj, self.Q_cj, self.rho_j, self.rho_a,
+                                                           self.Ny, self.Nx, self.Q_a,
+                                                           self.Q_th, self.Q_o, self.f, self.a,
+                                                           self.Q_v)  # Update of turbidity flow velocity
+        ma.compare_ndarray(t_Q_v, self.Q_v, tol)
+        ma.compare_ndarray(t_Q_v_is_zero_two_timesteps, self.Q_v_is_zero_two_timesteps, tol)
+        self.sanityCheck()
+
+        # Bed toppling rule
+        t_Q_a, t_Q_d, t_Q_cbj = tra2.I_4(self.Q_d, self.Ny, self.Nx, self.Nj, self.dx, self.reposeAngle,
+                                                 self.Q_cbj,
+                                                 self.Q_a, self.seaBedDiff)
+
+        self.Q_a, self.Q_d, self.Q_cbj = tra.I_4(self.Q_d, self.Ny, self.Nx, self.Nj, self.dx, self.reposeAngle,
+                                                 self.Q_cbj,
+                                                 self.Q_a, self.seaBedDiff)
+        ma.compare_ndarray(t_Q_a, self.Q_a, tol)
+        ma.compare_ndarray(t_Q_d, self.Q_d, tol)
+        ma.compare_ndarray(t_Q_cbj, self.Q_cbj, tol)
+        self.sanityCheck()
 
     def T_1(self):
         self.Q_cj, self.Q_th = tra.T_1(self.Ny, self.Nx, self.Nj, self.Q_cj, self.rho_j, self.rho_a, self.Q_th,
