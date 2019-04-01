@@ -170,7 +170,7 @@ class CAenvironment():
             pass
         plt.tight_layout()
         s1 = str(self.terrain) if self.terrain is None else self.terrain
-        plt.savefig(os.path.join('./Data/','full_%03ix%03i_%s_%03i_thetar%0.0f.png' % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']) ),
+        plt.savefig(os.path.join(self.parameters['save_dir'],'full_%03ix%03i_%s_%03i_thetar%0.0f.png' % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']) ),
                     bbox_inches='tight', pad_inches=0, dpi=240)
         plt.close('all')
 
@@ -249,7 +249,8 @@ class CAenvironment():
         ax2.set_ylim([0, 1])
         ax2.set_ylabel('Concentration')
         plt.tight_layout()
-        plt.savefig('./Data/ch_bot_%03i.png' % (i + 1), bbox_inches='tight', pad_inches=0, dpi=240)
+        plt.savefig(os.path.join(self.parameters['save_dir'],'ch_bot_%03i.png' % (i + 1)),
+                    bbox_inches='tight', pad_inches=0, dpi=240)
 
 
         plt.close('all')
@@ -393,17 +394,22 @@ class CAenvironment():
 
     def writeToTxt(self, i):
         s1 = str(self.terrain) if self.terrain is None else self.terrain
-        with open('./Data/full_%03ix%03i_%s_%03i_thetar%0.0f_time.txt' % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']), 'w') as f:
+        time_file = os.path.join(self.parameters['save_dir'],'full_%03ix%03i_%s_%03i_thetar%0.0f_time.txt'
+                                 % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']))
+        mass_file = os.path.join(self.parameters['save_dir'],'full_%03ix%03i_%s_%03i_thetar%0.0f_mass.txt'
+                                 % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']))
+        maxdensity_file = os.path.join(self.parameters['save_dir'],'full_%03ix%03i_%s_%03i_thetar%0.0f_maxdensity.txt'
+                                 % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']))
+        with open(time_file, 'w') as f:
             for item in self.time:
                 f.write("%s\n" % item)
 
         savemass = np.sum(self.mass, axis=(1, 2, 3))
-        with open('./Data/full_%03ix%03i_%s_%03i_thetar%0.0f_mass.txt' % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']), 'w') as f:
+        with open(mass_file, 'w') as f:
             for item in savemass:
                 f.write("%s\n" % item)
 
-        with open('./Data/full_%03ix%03i_%s_%03i_thetar%0.0f_maxdensity.txt' % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']),
-                  'w') as f:
+        with open(maxdensity_file,'w') as f:
             for item in self.density:
                 f.write("%s\n" % item)
 
@@ -455,5 +461,6 @@ class CAenvironment():
         ax3.set_xlabel('$n$', fontsize=fontsize)
 
         s1 = str(self.terrain) if self.terrain is None else self.terrain
-        plt.savefig('./Data/full_%03ix%03i_%s_%03i_thetar%0.0f_stability.png' % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r']),
-                    bbox_inches='tight', pad_inches=0)
+        plt.savefig(os.path.join(self.parameters['save_dir'],'full_%03ix%03i_%s_%03i_thetar%0.0f_stability.png'
+                                 % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r'])),
+                                 bbox_inches='tight', pad_inches=0)

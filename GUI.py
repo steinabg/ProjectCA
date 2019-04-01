@@ -7,19 +7,34 @@
 
 
 from PyQt5 import QtCore, QtGui, QtWidgets
+from functools import partial
 import sqlite3
 from configparser import ConfigParser, ExtendedInterpolation
 import sys
 import CAenvironment as main
 import numpy as np
+import os
+import re # For extracting new config name
 sys.path.append('..')
+
+config = 'scenario002'
+
+def ensure_dir(file_path):
+    directory = os.path.dirname(file_path)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
 
 class Ui_MainWindow(object):
 
 
-    def loadData(self, select=1, fileName='./Config/gui_default_config.ini'):
+    def loadData(self, select=1, fileName='./Config/'+config + '.ini'):
         if select == 1:
             fileName, _ = QtWidgets.QFileDialog.getOpenFileName(None, "Import configuration file", "","(*.ini)")
+            try:
+                global config
+                config = re.search('Config/(.+?).ini', fileName).group(1)
+            except AttributeError:
+                config = ''
 
         if fileName:
             parser = ConfigParser(interpolation=ExtendedInterpolation())
@@ -234,8 +249,7 @@ class Ui_MainWindow(object):
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
         self.loadData(select=0)
 
-
-        self.importBtn.clicked.connect(self.loadData)
+        self.importBtn.clicked.connect(partial(self.loadData, True))
         self.saveBtn.clicked.connect(self.saveData)
         self.checkBox_createAnimation.isChecked
 
@@ -249,9 +263,12 @@ class Ui_MainWindow(object):
         self.progressBar_step = 0
 
     def runSim(self):
+        save_dir = './Data/' + config + '/'
+        ensure_dir(save_dir)
         self.progressBar.setValue(0)
 
         parameters = {}
+        parameters['save_dir'] = save_dir
         for i in range(self.tableWidget.rowCount()):
             try:
                 parameters[self.tableWidget.item(i,0).text()] = eval(self.tableWidget.item(i,1).text())
