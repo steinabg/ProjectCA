@@ -444,11 +444,9 @@ class Hexgrid():
                 temp = np.sqrt((X[0, :] - 50) * (X[0, :] - 50) + (X[1, :] - 50) * (X[1, :] - 50))
                 self.Q_a += 10 * temp
             elif terrain == 'rupert':
-                # mat = scipy.io.loadmat('rupert_inlet_200x200.mat')
-                # mat['X'] = np.transpose(mat['X'])
-                # self.Q_a += mat['X']
                 temp, junk = ma.generate_rupert_inlet_bathymetry(self.reposeAngle, self.dx, self.Ny,self.Nx)
-                self.Q_a += np.transpose(temp)
+                temp = ma.gen_sloped_plane(self.Ny,self.Nx,self.dx,np.deg2rad(-5),mat=temp.transpose())
+                self.Q_a += temp
             elif terrain == 'sloped_plane':
                 self.Q_a += ma.gen_sloped_plane(self.Ny, self.Nx, self.dx, np.arctan(0.08))
 

@@ -20,7 +20,6 @@ def compare_ndarray(array1: np.ndarray, array2: np.ndarray, tol):
         return
 
 def generate_rupert_inlet_bathymetry(repose_angle,dx, Ny=200, Nx=200, channel_amplitude=None, channel_width=None, channeldepth=None):
-    # TODO Make bathymetry with varying slope. 12 deg at top according to article
     # Nx = Ny = 200
     X = np.zeros((Nx, Ny))
 
@@ -51,14 +50,6 @@ def generate_rupert_inlet_bathymetry(repose_angle,dx, Ny=200, Nx=200, channel_am
         X[int(np.round(Nx / 2) + y_offset - channel_width + j), np.arange(0, np.round(Ny / 3) + 1, dtype=np.int)] = \
         cross_sectionY[j]
 
-    # cross_sectionX = np.zeros((Ny))
-    # cross_sectionX = np.exp(-np.linspace(0,2,Ny))
-    cross_sectionX = np.tan(np.deg2rad(-5)) * np.arange(1, Ny + 1)
-
-    for i in range(Ny):
-        X[:, i] = X[:, i] + cross_sectionX[i]
-
-    X += 30
     x = np.arange(channel_width)
     angle = [(np.arctan2(cross_sectionY[i], x[i])) for i in range(1, len(cross_sectionY))]
     angle = np.abs(angle)
@@ -68,22 +59,27 @@ def generate_rupert_inlet_bathymetry(repose_angle,dx, Ny=200, Nx=200, channel_am
 
     return X, cross_sectionY
 
-def gen_sloped_plane(Ny: int, Nx: int, dx: float, angle: float):
+def gen_sloped_plane(Ny: int, Nx: int, dx: float, angle: float, mat=None):
     '''
     :param Ny: Number of cells in y direction
     :param Nx: Number of cells in x direction
     :param dx: Intercellular distance
-    :param angle: Angle of plane
+    :param angle: Angle of plane [radians]
+    :param mat: (Optional) ndarray with some predefined "terrain", onto which\
+                the slope angle will be added
     :return: Ny x Nx numpy array with height values
 
     Generates a plane where the height difference between cell rows\
     are defined by dx and angle. That is assuming hexagonal cells with\
     pointy heads.
     '''
-
     vec = np.arange(Ny, dtype=np.double)
     vec = vec * np.sqrt(3) / 2 * dx * np.sin(angle)
-    vec = -np.array([vec, ] * Nx).transpose() + np.amax(vec)
+    if mat is None:
+        vec = -np.array([vec, ] * Nx).transpose() + np.amax(vec)
+    else:
+        assert type(mat) == np.ndarray
+        vec = mat + vec[:, None]
     return vec
 
 def calc_settling_speed(D_sg: np.ndarray, rho_a, rho_j,g,nu):
