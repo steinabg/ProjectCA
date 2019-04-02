@@ -4,7 +4,7 @@ plt.style.use('bmh')
 import numpy as np
 import mathfunk as ma
 import transition_functions_cy as tra
-from mpldatacursor import datacursor
+# from mpldatacursor import datacursor
 
 
 
@@ -324,7 +324,7 @@ class Hexgrid():
         points = ax[3].scatter(self.X[1:-1, 1:-1, 0].flatten(), self.X[1:-1, 1:-1, 1].flatten(), marker='h',
                                c=self.Q_d[1:-1, 1:-1].flatten())
         plt.colorbar(points, shrink=0.6, ax=ax[3])
-        datacursor(bbox=dict(alpha=1))
+        # datacursor(bbox=dict(alpha=1))
         ax[3].set_title('Q_d[1:-1,1:-1]')
         plt.tight_layout()
         plt.show()

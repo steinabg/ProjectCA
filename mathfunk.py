@@ -2,6 +2,9 @@ import numpy as np
 import warnings
 import os
 
+def ensure_file(file_path):
+    if not os.path.exists(file_path):
+        open(file_path, 'a').close()
 
 def ensure_dir(file_path):
     directory = os.path.dirname(file_path)

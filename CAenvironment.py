@@ -10,7 +10,7 @@ np.set_printoptions(suppress=True, precision=3)
 
 
 
-# theta_r = 80
+
 def import_parameters(filename = None):
     if filename is None:
         filename = './Config/test.ini'
@@ -437,32 +437,32 @@ class CAenvironment():
         #         f.write("%s\n" % item)
 
 
-    def plotStabilityCurves(self, i):
+    def plotStabilityCurves(self, i_values):
         '''
-        :param i: iteration
+        :param i_values: Sample iteration values
         '''
         plt.figure(figsize=(15, 6))
         fontsize = 16
         ax1 = plt.subplot(131)
-        ax1.plot(self.density)
+        ax1.plot(i_values, self.density)
         ax1.set_ylabel('$Q_{cj}^{(n)}$', fontsize=fontsize)
         ax1.set_xlabel('$n$', fontsize=fontsize)
 
         ax2 = plt.subplot(133)
-        ax2.plot(self.time)
+        ax2.plot(i_values, self.time)
         ax2.set_xscale('log')
         ax2.set_ylabel('$\Delta t^{(n)}$', fontsize=fontsize)
         ax2.set_xlabel('$n$', fontsize=fontsize)
         plt.tight_layout()
 
         ax3 = plt.subplot(132)
-        ax3.plot(np.sum(self.mass, axis=(1, 2, 3)))
+        ax3.plot(i_values, np.sum(self.mass, axis=(1, 2, 3)))
         ax3.set_ylabel(' \"Mass\" = $Q_{th} \cdot Q_{cj}$', fontsize=fontsize)
         ax3.set_xlabel('$n$', fontsize=fontsize)
 
         s1 = str(self.terrain) if self.terrain is None else self.terrain
         plt.savefig(os.path.join(self.parameters['save_dir'],'full_%03ix%03i_%s_%03i_thetar%0.0f_stability.png'
-                                 % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r'])),
+                                 % (self.Nx, self.Ny, s1, i_values[-1], self.parameters['theta_r'])),
                                  bbox_inches='tight', pad_inches=0)
 
 def read_which_configs():
@@ -472,6 +472,8 @@ def read_which_configs():
     except:
         raise FileNotFoundError('Could not find config file of name configs.txt')
     content = [x.strip() for x in content]
+    if len(content) == 0:
+        raise RuntimeError('No .ini files specified in configs.txt!')
     return content
 
 if __name__ == "__main__":
@@ -481,6 +483,8 @@ if __name__ == "__main__":
     '''
     ma.ensure_dir('./Bathymetry/')
     ma.ensure_dir('./Data/')
+    ma.ensure_dir('./Config/')
+    ma.ensure_file('./Config/configs.txt')
     configs = read_which_configs()
 
     for config in configs:
@@ -494,6 +498,7 @@ if __name__ == "__main__":
         sample_rate = parameters['sample_rate']
         CAenv = CAenvironment(parameters)
         start = timer()
+        j_values = []
         for j in range(parameters['num_iterations']):
 
             CAenv.addSource(q_th0,q_v0, q_cj0)
@@ -501,9 +506,10 @@ if __name__ == "__main__":
             ind = np.unravel_index(np.argmax(CAenv.grid.Q_th, axis=None), CAenv.grid.Q_th.shape)
             CAenv.head_velocity.append(CAenv.grid.Q_v[ind])
             if ( (j+1) % sample_rate == 0) and j > 0:
+                j_values.append(j+1)
                 CAenv.sampleValues()
                 CAenv.printSubstates(j)
-        CAenv.plotStabilityCurves(j)
+        CAenv.plotStabilityCurves(j_values)
         CAenv.writeToTxt(j)
         print('{0} is complete. Time elapsed = {1}'.format(config, timer()-start))
 

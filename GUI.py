@@ -243,6 +243,8 @@ class Ui_MainWindow(object):
         MainWindow.setStatusBar(self.statusbar)
         ma.ensure_dir('./Bathymetry/')
         ma.ensure_dir('./Data/')
+        ma.ensure_dir('./Config/')
+        ma.ensure_file('./Config/configs.txt')
 
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
