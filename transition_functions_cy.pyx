@@ -14,9 +14,7 @@ from libc.math cimport pow as cpow
 from libc.math cimport log2 as clog2
 from libcpp.vector cimport vector as cvector
 
-@cython.cdivision(True)
-@cython.boundscheck(False) # turn off bounds-checking for entire function
-@cython.wraparound(False)  # turn off negative index wrapping for entire function
+
 def T_1(int Ny,int Nx,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,double[:,:] Q_th,double[:,:] Q_v,double dt,double g,
         ):  # Water entrainment. IN: Q_a,Q_th,Q_cj,Q_v. OUT: Q_vj,Q_th
     '''
@@ -55,7 +53,7 @@ def T_1(int Ny,int Nx,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,double[:,
 
     return nQ_cj, nQ_th
 
-@cython.cdivision(True)
+
 cdef double cstd(double *arr, int length):
     cdef double sum = 0.0, mean, standardDeviation = 0.0
     cdef int i
@@ -69,9 +67,7 @@ cdef double cstd(double *arr, int length):
         standardDeviation += cpow(arr[i] - mean, 2)
     return csqrt(standardDeviation/length)
 
-@cython.cdivision(True)
-@cython.boundscheck(False) # turn off bounds-checking for entire function
-@cython.wraparound(False)  # turn off negative index wrapping for entire function
+
 def T_2(int Ny,int Nx,int Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,double g,double c_D,double[:,:] Q_v,
         double[:] v_sj,double[:,:,:] Q_cj,double[:,:,:] Q_cbj,double[:,:] Q_th,double[:,:] Q_d,
         double dt,double porosity,double[:,:] Q_a,int[:,:] Q_v_is_zero_two_timesteps):
@@ -190,9 +186,7 @@ def T_2(int Ny,int Nx,int Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,dou
     return nQ_a, nQ_d, nQ_cj, nQ_cbj, nQ_th
 
 
-@cython.cdivision(True)
-@cython.boundscheck(False) # turn off bounds-checking for entire function
-@cython.wraparound(False)  # turn off negative index wrapping for entire function
+
 def I_1(double[:,:] Q_th,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,double[:,:] Q_v,double[:,:] Q_a,
         int Ny,int Nx,double dx,double p_f, double p_adh,double dt, double g):
     '''
@@ -277,9 +271,7 @@ def I_1(double[:,:] Q_th,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,double
 
     return nQ_o
 
-@cython.cdivision(True)
-@cython.boundscheck(False) # turn off bounds-checking for entire function
-@cython.wraparound(False)  # turn off negative index wrapping for entire function
+
 def I_2(int Ny,int Nx,int Nj,double[:,:,:] Q_o,double[:,:] Q_th,double[:,:,:] Q_cj):
     '''Update thickness and concentration. IN: Q_th,Q_cj,Q_o. OUT: Q_th,Q_cj'''
     nQ_th = np.zeros((Ny, Nx), dtype=np.double, order='C')
@@ -332,9 +324,7 @@ def I_2(int Ny,int Nx,int Nj,double[:,:,:] Q_o,double[:,:] Q_th,double[:,:,:] Q_
 
     return nQ_th, nQ_cj
 
-@cython.cdivision(True)
-@cython.boundscheck(False) # turn off bounds-checking for entire function
-@cython.wraparound(False)  # turn off negative index wrapping for entire function
+
 def I_3(double g,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,int Ny,int Nx,double[:,:] Q_a,
     double[:,:] Q_th,double[:,:,:] Q_o,double f,double a, Q_v):  # Should be done
     '''
@@ -383,9 +373,7 @@ def I_3(double g,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,int Ny,int Nx,
 
     return nQ_v, Q_v_is_zero_two_timesteps
 
-@cython.cdivision(True)
-@cython.boundscheck(False) # turn off bounds-checking for entire function
-@cython.wraparound(False)  # turn off negative index wrapping for entire function
+
 def I_4(double[:,:] Q_d,int Ny,int Nx,int Nj,double dx,double reposeAngle,double[:,:,:] Q_cbj,double[:,:] Q_a,double[:,:,:] seaBedDiff):  # Toppling rule
     nQ_d = np.zeros((Ny,Nx), dtype=np.double, order='C')
     nQ_a = np.zeros((Ny,Nx), dtype=np.double, order='C')

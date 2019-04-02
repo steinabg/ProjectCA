@@ -437,7 +437,7 @@ if __name__ == "__main__":
     neighbor_processes = [0, 0, 0, 0]
 
 
-
+    # TODO: Fix toppling rule behaviour for MPI
     # Load CA parameters from file
     parameters = CAenv.import_parameters()
 

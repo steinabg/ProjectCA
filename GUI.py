@@ -324,7 +324,7 @@ class Ui_MainWindow(object):
 
             CAenv.addSource(q_th0,q_v0, q_cj0)
             # CAenv.add_source_constant(q_th0,q_v0, q_cj0)
-            CAenv.CAtimeStep(compare_cy_py=True)
+            CAenv.CAtimeStep(compare_cy_py=False)
             # CAenv.printSubstates_to_screen(i+1)
             ind = np.unravel_index(np.argmax(CAenv.grid.Q_th, axis=None), CAenv.grid.Q_th.shape)
             CAenv.head_velocity.append(CAenv.grid.Q_v[ind])

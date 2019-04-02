@@ -362,12 +362,13 @@ class CAenvironment():
         # grid.Q_cj[y, x, 0] += 0.003
         # grid.Q_th[y, x] += 1.5
         if (self.parameters['x'] is not None) and (self.parameters['y'] is not None):
-            self.grid.Q_v[self.y, self.x] = (self.grid.Q_v[self.y, self.x] * self.grid.Q_th[self.y,self.x] + q_v0 * q_th0*self.grid.dt) / (q_th0*self.grid.dt + self.grid.Q_th[self.y, self.x])
-            self.grid.Q_th[self.y, self.x] += q_th0*self.grid.dt
-            for particle_type in range(self.Nj):
-                self.grid.Q_cj[self.y, self.x, particle_type] = (self.grid.Q_cj[self.y, self.x, particle_type] * self.grid.Q_th[
-                    self.y, self.x] + q_cj0 * q_th0 * self.grid.dt) / (
-                                                                1.5 * self.grid.dt + self.grid.Q_th[self.y, self.x])
+            if (self.parameters['q_th[y,x]'] > 0):
+                self.grid.Q_v[self.y, self.x] = (self.grid.Q_v[self.y, self.x] * self.grid.Q_th[self.y,self.x] + q_v0 * q_th0*self.grid.dt) / (q_th0*self.grid.dt + self.grid.Q_th[self.y, self.x])
+                self.grid.Q_th[self.y, self.x] += q_th0*self.grid.dt
+                for particle_type in range(self.Nj):
+                    self.grid.Q_cj[self.y, self.x, particle_type] = (self.grid.Q_cj[self.y, self.x, particle_type] * self.grid.Q_th[
+                        self.y, self.x] + q_cj0 * q_th0 * self.grid.dt) / (
+                                                                    1.5 * self.grid.dt + self.grid.Q_th[self.y, self.x])
         else:
             pass
 
