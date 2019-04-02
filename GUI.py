@@ -15,14 +15,11 @@ import CAenvironment as main
 import numpy as np
 import os
 import re # For extracting new config name
+import mathfunk as ma
 sys.path.append('..')
 
 config = 'scenario001B'
 
-def ensure_dir(file_path):
-    directory = os.path.dirname(file_path)
-    if not os.path.exists(directory):
-        os.makedirs(directory)
 
 class Ui_MainWindow(object):
 
@@ -244,8 +241,8 @@ class Ui_MainWindow(object):
         self.statusbar = QtWidgets.QStatusBar(MainWindow)
         self.statusbar.setObjectName("statusbar")
         MainWindow.setStatusBar(self.statusbar)
-        ensure_dir('./Bathymetry/')
-        ensure_dir('./Data/')
+        ma.ensure_dir('./Bathymetry/')
+        ma.ensure_dir('./Data/')
 
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
@@ -266,7 +263,7 @@ class Ui_MainWindow(object):
 
     def runSim(self):
         save_dir = './Data/' + config + '/'
-        ensure_dir(save_dir)
+        ma.ensure_dir(save_dir)
         self.progressBar.setValue(0)
 
         parameters = {}
@@ -302,22 +299,6 @@ class Ui_MainWindow(object):
         q_cj0 = parameters['q_cj[y,x,0]']
         q_v0 = parameters['q_v[y,x]']
 
-        # TODO Remove after debugging
-        # import matplotlib.pyplot as plt
-        # fig = plt.figure(figsize=(10, 6))
-        # ax = [fig.add_subplot(1, 2, i, aspect='equal') for i in range(1, 3)]
-        # # ind = np.unravel_index(np.argmax(Image_Q_a, axis=None), Image_Q_a.shape)
-        #
-        # points = ax[0].scatter(CAenv.grid.X[:, :, 0].flatten(), CAenv.grid.X[:, :, 1].flatten(), marker='h',
-        #                        c=CAenv.grid.Q_a[:, :].flatten())
-        #
-        # plt.colorbar(points, shrink=0.6, ax=ax[0])
-        # ax[0].set_title('Q_a[:,:]. ')
-        # points = ax[1].scatter(CAenv.grid.X[:, :, 0].flatten(), CAenv.grid.X[:, :, 1].flatten(), marker='h',
-        #                        c=CAenv.grid.Q_d[:, :].flatten())
-        # plt.colorbar(points, shrink=0.6, ax=ax[1])
-        #
-        # plt.savefig('./Data/before.png',bbox_inches='tight', pad_inches=0)
 
         from timeit import default_timer as timer
         start = timer()

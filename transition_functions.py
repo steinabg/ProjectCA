@@ -86,10 +86,8 @@ def T_2(Ny, Nx, Nj, rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th
                     # print(particle_reynolds)
                     if (particle_reynolds >= 3.5):
                         function_reynolds = particle_reynolds ** (0.6)
-                    elif (particle_reynolds > 1) and (particle_reynolds < 3.5):
-                        function_reynolds = 0.586 * particle_reynolds ** (1.23)
                     else:
-                        raise Exception('Eq. (40) (Salles) not defined for R_pj = {0}'.format(particle_reynolds))
+                        function_reynolds = 0.586 * particle_reynolds ** (1.23)
                     Z_mj = kappa * np.sqrt(c_D * Q_v[ii, jj]) * function_reynolds / fall_velocity_dimless
                     erosion_rate = (1.3 * 10 ** (-7) * Z_mj ** (5)) / (1 + 4.3 * 10 ** (-7) * Z_mj ** (5))
 

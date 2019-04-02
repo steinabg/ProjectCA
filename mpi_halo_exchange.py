@@ -439,7 +439,7 @@ if __name__ == "__main__":
 
     # TODO: Fix toppling rule behaviour for MPI
     # Load CA parameters from file
-    parameters = CAenv.import_parameters()
+    parameters = CAenv.import_parameters('scenario001B')
 
     if my_rank is 0:
         # import pandas as pd

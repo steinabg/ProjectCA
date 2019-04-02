@@ -2,29 +2,28 @@ from hexgrid import *
 import matplotlib.pyplot as plt
 # import sys
 import os.path
-from mpldatacursor import datacursor
+import os
+# from mpldatacursor import datacursor
+from timeit import default_timer as timer
 # sys.path.append('..')
 np.set_printoptions(suppress=True, precision=3)
 
-'''
-IC: i.e. t = 0
-Q_a = bathymetry
-Q_th = 0; Q_th(j = source area) = some number
-Q_v = 0; Q_v(source) = some number
-Q_cj = 0; Q_cj(source) = some number
-Q_cbj = fraction of each sediment present in bed
-Q_d = thickness of soft sediment, which can be eroded
-Q_o = 0
-'''
 
 
 # theta_r = 80
-def import_parameters(filename = './Config/test.ini'):
+def import_parameters(filename = None):
+    if filename is None:
+        filename = './Config/test.ini'
+    else:
+        filename = './Config/' + filename + '.ini'
     from configparser import ConfigParser, ExtendedInterpolation
     import numpy as np # Must be here for imported expressions to be evaluated
 
     parser = ConfigParser(interpolation=ExtendedInterpolation())
-    parser.read(filename)
+    if os.path.exists(filename):
+        parser.read(filename)
+    else:
+        raise FileNotFoundError('Could not find file with name {0}'.format(filename))
     sections = parser.sections()
 
     items = parser.items(sections[0])
@@ -279,7 +278,7 @@ class CAenvironment():
 
         points = ax[3].scatter(self.grid.X[1:-1, 1:-1, 0].flatten(), self.grid.X[1:-1, 1:-1, 1].flatten(), marker='h',
                                c=self.grid.Q_d[1:-1, 1:-1].flatten())
-        datacursor(bbox=dict(alpha=1))
+        # datacursor(bbox=dict(alpha=1))
         plt.colorbar(points, shrink=0.6, ax=ax[3])
         ax[3].set_title('Q_d[1:-1,1:-1]')
         plt.tight_layout()
@@ -465,3 +464,49 @@ class CAenvironment():
         plt.savefig(os.path.join(self.parameters['save_dir'],'full_%03ix%03i_%s_%03i_thetar%0.0f_stability.png'
                                  % (self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r'])),
                                  bbox_inches='tight', pad_inches=0)
+
+def read_which_configs():
+    try:
+        with open('./Config/configs.txt') as f:
+            content = f.readlines()
+    except:
+        raise FileNotFoundError('Could not find config file of name configs.txt')
+    content = [x.strip() for x in content]
+    return content
+
+if __name__ == "__main__":
+    '''
+    This script reads all configurations in configs.txt, and runs all the simulations\
+    specified there!
+    '''
+    ma.ensure_dir('./Bathymetry/')
+    ma.ensure_dir('./Data/')
+    configs = read_which_configs()
+
+    for config in configs:
+        parameters = import_parameters(config)
+        save_dir = './Data/' + config + '/'
+        ma.ensure_dir(save_dir)
+        parameters['save_dir'] = save_dir
+        q_th0 = parameters['q_th[y,x]']
+        q_cj0 = parameters['q_cj[y,x,0]']
+        q_v0 = parameters['q_v[y,x]']
+        sample_rate = parameters['sample_rate']
+        CAenv = CAenvironment(parameters)
+        start = timer()
+        for j in range(parameters['num_iterations']):
+
+            CAenv.addSource(q_th0,q_v0, q_cj0)
+            CAenv.CAtimeStep(compare_cy_py=False)
+            ind = np.unravel_index(np.argmax(CAenv.grid.Q_th, axis=None), CAenv.grid.Q_th.shape)
+            CAenv.head_velocity.append(CAenv.grid.Q_v[ind])
+            if ( (j+1) % sample_rate == 0) and j > 0:
+                CAenv.sampleValues()
+                CAenv.printSubstates(j)
+        CAenv.plotStabilityCurves(j)
+        CAenv.writeToTxt(j)
+        print('{0} is complete. Time elapsed = {1}'.format(config, timer()-start))
+
+
+
+

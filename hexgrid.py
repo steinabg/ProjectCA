@@ -62,10 +62,8 @@ class Hexgrid():
 
         ################### Set Initial conditions #####################
         if ICstates is not None: self.set_substate_ICs(ICstates)
-        self.CellArea = ma.calc_hexagon_area(dx)
         if global_grid == True:
             self.setBathymetry(terrain)
-        self.diff = np.zeros((self.Ny - 2, self.Nx - 2, 6))
         self.seaBedDiff = np.zeros((self.Ny - 2, self.Nx - 2, 6))
         self.calc_bathymetryDiff()
 
@@ -74,7 +72,6 @@ class Hexgrid():
 
 
         # FOR DEBUGGING
-        self.i = 0
         self.my_rank = 0
         self.unphysical_substate = {'Q_th': 0, 'Q_v': 0, 'Q_cj':0,'Q_cbj':0,'Q_d':0,'Q_o':0}
         self.Erosionrate_sample = []
