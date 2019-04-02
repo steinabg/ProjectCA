@@ -177,7 +177,7 @@ class CAenvironment():
         # Plot the 1D substates along the bottom of the channel
         fig = plt.figure(figsize=(10, 6))
         ax = [fig.add_subplot(2, 2, i, aspect='auto') for i in range(1, 5)]
-        lnns1 = ax[0].plot(np.arange(len(self.ch_bot_thickness)), self.ch_bot_thickness, label='Q_th')
+        lnns1 = ax[0].plot(np.arange(len(self.ch_bot_thickness)), self.ch_bot_thickness, label='Q_th', color='black')
         ax[0].plot((5, 5), (0, 3), 'k-')
         ax[0].set_title('1D Q_th, time step = %03i' % (i+1))
         ax[0].set_ylim([0, 3])
@@ -229,7 +229,7 @@ class CAenvironment():
         ax[2].set_ylim([0, 2])
         ax[2].set_ylabel('sum(Q_{o}[y,x])')
 
-        lns1 = ax[3].plot(np.arange(len(self.ch_bot_speed)), self.ch_bot_sediment, label='Q_{d}')
+        lns1 = ax[3].plot(np.arange(len(self.ch_bot_speed)), self.ch_bot_sediment, label='Q_{d}', color='black')
         # ax[3].plot((5, 5), (0, 2), 'k-')
         ax[3].set_title('Sediment, time step = %03i' % (i + 1))
         # ax[3].set_ylim([0, 2])
