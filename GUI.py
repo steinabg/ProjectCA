@@ -17,7 +17,7 @@ import os
 import re # For extracting new config name
 sys.path.append('..')
 
-config = 'scenario002'
+config = 'scenario001B'
 
 def ensure_dir(file_path):
     directory = os.path.dirname(file_path)
@@ -244,6 +244,8 @@ class Ui_MainWindow(object):
         self.statusbar = QtWidgets.QStatusBar(MainWindow)
         self.statusbar.setObjectName("statusbar")
         MainWindow.setStatusBar(self.statusbar)
+        ensure_dir('./Bathymetry/')
+        ensure_dir('./Data/')
 
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
