@@ -278,19 +278,6 @@ class Hexgrid():
             raise Exception("should always be 1 with nj=1!")
 
 
-        # If velocity goes to zero. Sediment everything.
-        # index = (self.Q_v < 1e-16) & (self.Q_v>0) & (self.Q_th > 0)
-        # dep_material = np.zeros((self.Ny,self.Nx,self.Nj))
-        # dep_material[index,:] += self.Q_th[index,None] * self.Q_cj[index]
-        #
-        # for i in range(self.Nj):
-        #     self.Q_cbj[:,:,i] += (dep_material[:,:,i] - self.Q_cbj[:,:,i]*np.sum(dep_material,axis=2)) /\
-        #                             self.Q_d
-        #     self.Q_cj[index, i] = 0
-        #
-        # self.Q_d += np.sum(dep_material,axis=2)
-        # self.Q_a += np.sum(dep_material,axis=2)
-        # self.Q_th[index] = 0
 
 
         self.Q_cj[self.Q_cj < 1e-16] = 0
@@ -334,31 +321,35 @@ class Hexgrid():
             x = np.linspace(0, 100, self.Nx)
             y = np.linspace(0, 100, self.Ny)
             X = np.array(np.meshgrid(x, y))
-            if terrain == 'river':
-                temp = -2 * X[1, :] + 5 * np.abs(X[0, :] - 50 + 10 * np.sin(X[1, :] / 10))
-                #                 temp = 2*self.X[:,:,1] + 5*np.abs(self.X[:,:,0] + 10*np.sin(self.X[:,:,1]/10))
-                self.Q_a += temp  # BRUK MED RIVER
-            elif terrain == 'river_shallow':
-                temp = -1 * X[1, :] + 1 * np.abs(X[0, :] - 50 + 5 * np.sin(X[1, :] / 10))
-                #                 temp = 2*self.X[:,:,1] + 5*np.abs(self.X[:,:,0] + 10*np.sin(self.X[:,:,1]/10))
-                self.Q_a += temp  # BRUK MED RIVER
-            elif terrain == 'pit':
-                temp = np.sqrt((X[0, :] - 50) * (X[0, :] - 50) + (X[1, :] - 50) * (X[1, :] - 50))
-                self.Q_a += 10 * temp
-            elif terrain == 'rupert':
-                temp, junk = ma.generate_rupert_inlet_bathymetry(self.reposeAngle, self.dx, self.Ny,self.Nx)
-                temp = ma.gen_sloped_plane(self.Ny,self.Nx,self.dx,np.deg2rad(-5),mat=temp.transpose())
-                self.Q_a += temp
-            elif terrain == 'sloped_plane':
-                self.Q_a += ma.gen_sloped_plane(self.Ny, self.Nx, self.dx, np.arctan(0.08))
-            else:
-                terrain_path = './Bathymetry/' + terrain + '.npy'
-                try:
-                    temp = np.load(terrain_path)
-                except FileNotFoundError:
-                    raise FileNotFoundError('Could not find bathymetry with name {0}'.format(terrain))
-                assert temp.shape == self.Q_a.shape
-                self.Q_a += temp
+            if type(terrain) == str:
+                if terrain == 'river':
+                    temp = -2 * X[1, :] + 5 * np.abs(X[0, :] - 50 + 10 * np.sin(X[1, :] / 10))
+                    #                 temp = 2*self.X[:,:,1] + 5*np.abs(self.X[:,:,0] + 10*np.sin(self.X[:,:,1]/10))
+                    self.Q_a += temp  # BRUK MED RIVER
+                elif terrain == 'river_shallow':
+                    temp = -1 * X[1, :] + 1 * np.abs(X[0, :] - 50 + 5 * np.sin(X[1, :] / 10))
+                    #                 temp = 2*self.X[:,:,1] + 5*np.abs(self.X[:,:,0] + 10*np.sin(self.X[:,:,1]/10))
+                    self.Q_a += temp  # BRUK MED RIVER
+                elif terrain == 'pit':
+                    temp = np.sqrt((X[0, :] - 50) * (X[0, :] - 50) + (X[1, :] - 50) * (X[1, :] - 50))
+                    self.Q_a += 10 * temp
+                elif terrain == 'rupert':
+                    temp, junk = ma.generate_rupert_inlet_bathymetry(self.reposeAngle, self.dx, self.Ny,self.Nx)
+                    temp = ma.gen_sloped_plane(self.Ny,self.Nx,self.dx,np.deg2rad(-5),mat=temp.transpose())
+                    self.Q_a += temp
+                elif terrain == 'sloped_plane':
+                    self.Q_a += ma.gen_sloped_plane(self.Ny, self.Nx, self.dx, np.arctan(0.08))
+                else:
+                    terrain_path = './Bathymetry/' + terrain + '.npy'
+                    try:
+                        temp = np.load(terrain_path)
+                    except FileNotFoundError:
+                        raise FileNotFoundError('Could not find bathymetry with name {0}'.format(terrain))
+                    assert temp.shape == self.Q_a.shape
+                    self.Q_a += temp
+            elif type(terrain) == np.ndarray:
+                assert self.Q_a.shape == terrain.shape
+                self.Q_a += terrain
 
     def calc_bathymetryDiff(self):
         with np.errstate(invalid='ignore'):

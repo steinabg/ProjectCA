@@ -47,6 +47,19 @@ to
 ```
 import transition_functions as tra # This is the python version
 ```
+
+### Specifying a bathymetry
+The bathymetry used by the simulation can be specified through modifying the 'terrain' parameter 
+in the .ini files. Terrain can either be a keyword (string type) or a numpy.ndarray((Ny,Nx)).
+
+Valid keywords are:
+* 'river'
+* 'river_shallow'
+* 'rupert'
+* 'sloped_plane'
+
+
+
 ### Prerequisites
 
 At this point some python packages may be used strictly for debugging

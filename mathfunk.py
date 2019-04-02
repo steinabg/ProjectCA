@@ -92,6 +92,20 @@ def gen_sloped_plane(Ny: int, Nx: int, dx: float, angle: float, mat=None):
         vec = mat + vec[:, None]
     return vec
 
+def gen_sloped_plane_batch(Ny: int, Nx:int, dx: float, angles: list):
+    '''
+
+    :param Ny:
+    :param Nx:
+    :param dx:
+    :param angles:
+    :return: List of sloped planes (Ny x Nx matrix) with angles as specified by the list of angles
+    '''
+    result = []
+    for angle in angles:
+        result.append(gen_sloped_plane(Ny, Nx, dx, angle))
+    return result
+
 def calc_settling_speed(D_sg: np.ndarray, rho_a, rho_j,g,nu):
     '''
 
