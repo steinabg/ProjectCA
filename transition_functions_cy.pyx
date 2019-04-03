@@ -88,7 +88,10 @@ def T_2(int Ny,int Nx,int Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,dou
     cdef double[:,:,:] nQ_cbj_view = nQ_cbj
     cdef int num_cells = 0, ii, jj, kk, ll, invalid
     cdef int num_cells_invalid = 0
-    cdef double *log_2_D_sj, sum_q_cj, sediment_mean_size, kappa, *f_sj, f_sj_sum, q_cj_sum
+    cdef double *log_2_D_sj
+    cdef double sum_q_cj, sediment_mean_size, kappa
+    cdef double *f_sj
+    cdef double f_sj_sum, q_cj_sum
     cdef double fall_velocity_dimless, near_bed_c, particle_reynolds, Z_mj, erosion_rate
     for ii in range(Ny):
         for jj in range(Nx):
@@ -289,7 +292,8 @@ def I_2(int Ny,int Nx,int Nj,double[:,:,:] Q_o,double[:,:] Q_th,double[:,:,:] Q_
     cdef int nb_flow_dir[6]
     nb_flow_dir[:] = [3, 4, 5, 0, 1, 2]
     cdef int ii, jj, kk, ll
-    cdef double Q_o_from_center_sum, *Q_o_Q_cj_neighbors
+    cdef double Q_o_from_center_sum
+    cdef double *Q_o_Q_cj_neighbors
     # Only update interior cells:
     for ii in range(Ny):
         for jj in range(Nx):
@@ -381,8 +385,11 @@ def I_4(double[:,:] Q_d,int Ny,int Nx,int Nj,double dx,double reposeAngle,double
     cdef double[:,:] nQ_d_view = nQ_d
     cdef double[:,:] nQ_a_view = nQ_a
     cdef double[:,:,:] nQ_cbj_view = nQ_cbj
-    cdef int ii, jj, kk, num_recv, *give_dir, nb_no, nb_ii, nb_jj, ll
-    cdef double *diff, angle, frac, deltaS
+    cdef int ii, jj, kk, num_recv
+    cdef int *give_dir
+    cdef int nb_no, nb_ii, nb_jj, ll
+    cdef double *diff
+    cdef double angle, frac, deltaS
 
     # nb_index = [[-1, 0], [-1, 1], [0, 1], [1, 0], [1, -1], [0, -1]]
     cdef int nb_index[6][2]

@@ -109,10 +109,11 @@ venv.bak/
 .idea/
 Bathymetry/
 Data/
+Kladd/
 Config/configs.txt
 kladd_cy.*
-kladd.py
 *.ipynb
 *.c
 *.cpp
 *.html
+*.ods

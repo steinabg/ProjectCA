@@ -481,6 +481,9 @@ if __name__ == "__main__":
     This script reads all configurations in configs.txt, and runs all the simulations\
     specified there!
     '''
+    import subprocess
+    subprocess.call(['./compile.sh'])
+
     ma.ensure_dir('./Bathymetry/')
     ma.ensure_dir('./Data/')
     ma.ensure_dir('./Config/')
