@@ -5,7 +5,7 @@ import T1functions as T1
 import T2functions as T2
 import mathfunk as ma
 cimport cython
-from libc.stdlib cimport calloc
+from libc.stdlib cimport calloc, free
 from libc.math cimport sqrt as csqrt
 from libc.math cimport atan as carctan
 from libc.math cimport tan as ctan
@@ -162,7 +162,8 @@ def T_2(int Ny,int Nx,int Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,dou
                     for ll in range(Nj):
                         nQ_cj_view[ii, jj, ll] = Q_cj[ii, jj, ll]
                         nQ_cbj_view[ii, jj, ll] = Q_cbj[ii, jj, ll]
-
+                free(log_2_D_sj)
+                free(f_sj)
 
             # If (interior cell) && (velocity has been zero for two time steps): sediment everything; remove t current
             elif (Q_v_is_zero_two_timesteps[ii, jj] == 1) and (Q_v[ii, jj] > 0) and (ii > 0) and (ii < Ny - 1) and (jj > 0) and (jj < Nx - 1):
@@ -271,7 +272,8 @@ def I_1(double[:,:] Q_th,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,double
                         raise ValueError
                 if Q_o_sum > Q_th[ii, jj]:
                     raise ValueError
-
+                free(f)
+                free(nb_h)
     return nQ_o
 
 
@@ -321,6 +323,7 @@ def I_2(int Ny,int Nx,int Nj,double[:,:,:] Q_o,double[:,:] Q_th,double[:,:,:] Q_
                                                                  Q_o_Q_cj_neighbors[kk])
                         if (cisnan(nQ_cj_view[ii,jj,kk])) or (nQ_cj_view[ii,jj,kk] < 0):
                             raise ValueError
+                free(Q_o_Q_cj_neighbors)
             else:
                 nQ_th_view[ii,jj] = Q_th[ii,jj]
                 for kk in range(Nj):
@@ -442,7 +445,8 @@ def I_4(double[:,:] Q_d,int Ny,int Nx,int Nj,double dx,double reposeAngle,double
 
                         nQ_d_view[ii,jj] -= deltaS
                         nQ_a_view[ii,jj] -= deltaS
-
+                free(give_dir)
+                free(diff)
 
 
 
