@@ -33,11 +33,11 @@ def T_1(int Ny,int Nx,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,double[:,
     for ii in range(Ny):
         for jj in range(Nx):
             if (Q_th[ii, jj] > 0) and (Q_v[ii,jj] > 0) and (ii > 0) and (ii < Ny - 1) and (jj > 0) and (jj < Nx - 1):
-                g_prime = 0
+                g_prime = 0.0
                 for zz in range(Nj):
                     g_prime += g * (Q_cj[ii, jj, zz] * (rho_j[zz] - rho_a) / rho_a)
                 Ri_number = g_prime * Q_th[ii, jj] / (Q_v[ii, jj] * Q_v[ii, jj])
-                dimless_entrainment_rate = 0.075 / csqrt(1 + 718 * (Ri_number) ** (2.4))
+                dimless_entrainment_rate = 0.075 / csqrt(1.0 + 718.0 * (Ri_number) ** (2.4))
                 entrainment_rate = Q_v[ii, jj] * dimless_entrainment_rate
 
                 nQ_th_view[ii, jj] = Q_th[ii, jj] + entrainment_rate * dt
@@ -100,8 +100,8 @@ def T_2(int Ny,int Nx,int Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,dou
             if (Q_th[ii, jj] > 0) and (Q_v[ii, jj] > 0) and (ii > 0) and (ii < Ny - 1) and (jj > 0) and (jj < Nx - 1):
                 num_cells += 1
                 # Deposition initialization:
-                sediment_mean_size = 1
-                sum_q_cj = 0
+                sediment_mean_size = 1.0
+                sum_q_cj = 0.0
 
                 # Erosion initialization:
                 # log_2_D_sj = np.zeros((Nj), dtype=np.double, order='C')
@@ -119,7 +119,7 @@ def T_2(int Ny,int Nx,int Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,dou
                 sediment_mean_size = sediment_mean_size ** (1.0 / Nj) / sum_q_cj
                 # f_sj = np.zeros((Nj), dtype=np.double, order='C')
                 f_sj = <double*> calloc(Nj,sizeof(double))
-                f_sj_sum = 0
+                f_sj_sum = 0.0
 
                 for kk in range(Nj):
                     # Deposition part:
@@ -133,10 +133,9 @@ def T_2(int Ny,int Nx,int Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,dou
                     # print(particle_reynolds)
                     if (particle_reynolds >= 3.5):
                         function_reynolds = particle_reynolds ** (0.6)
-                    elif (particle_reynolds > 1) and (particle_reynolds < 3.5):
-                        function_reynolds = 0.586 * particle_reynolds ** (1.23)
                     else:
-                        raise Exception('Eq. (40) (Salles) not defined for R_pj = {0}'.format(particle_reynolds))
+                        function_reynolds = 0.586 * particle_reynolds ** (1.23)
+
                     Z_mj = kappa * csqrt(c_D * Q_v[ii, jj]) * function_reynolds / fall_velocity_dimless
                     erosion_rate = (1.3 * 1e-7 * Z_mj ** (5)) / (1 + 4.3 * 1e-7 * Z_mj ** (5))
 
@@ -218,7 +217,7 @@ def I_1(double[:,:] Q_th,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,double
     for ii in range(1, Ny - 1):
         for jj in range(1, Nx - 1):
             if (Q_th[ii,jj] > 0.0): # If cell has flow perform algorithm
-                g_prime = 0
+                g_prime = 0.0
                 for kk in range(Nj):
                     g_prime += g * (Q_cj[ii, jj, kk] * (rho_j[kk] - rho_a) / rho_a)
                 h_k = 0.5 * Q_v[ii,jj] * Q_v[ii,jj] / g_prime
@@ -243,7 +242,7 @@ def I_1(double[:,:] Q_th,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,double
                 Average = 0.0
                 while eliminated and len(A) > 0:
                     eliminated = False
-                    sum_nb_h_in_A = 0
+                    sum_nb_h_in_A = 0.0
                     for zz in range(len(A)):
                         dir = A[zz]
                         sum_nb_h_in_A += nb_h[dir]
@@ -300,7 +299,7 @@ def I_2(int Ny,int Nx,int Nj,double[:,:,:] Q_o,double[:,:] Q_th,double[:,:,:] Q_
     for ii in range(Ny):
         for jj in range(Nx):
             if (ii > 0) and (ii < Ny - 1) and (jj > 0) and (jj < Nx - 1):
-                Q_o_from_center_sum = 0
+                Q_o_from_center_sum = 0.0
                 # Q_o_Q_cj_neighbors = np.zeros((Nj), dtype=np.double, order='C')
                 Q_o_Q_cj_neighbors = <double*> calloc(Nj, sizeof(double))
                 nQ_th_view[ii,jj] += Q_th[ii,jj]
@@ -319,7 +318,7 @@ def I_2(int Ny,int Nx,int Nj,double[:,:,:] Q_o,double[:,:] Q_th,double[:,:,:] Q_
 
                 if (nQ_th_view[ii, jj] > 0):
                     for kk in range(Nj):
-                        nQ_cj_view[ii, jj, kk] = 1 / nQ_th_view[ii, jj] * ((Q_th[ii, jj] - Q_o_from_center_sum) * Q_cj[ii, jj, kk] +
+                        nQ_cj_view[ii, jj, kk] = 1.0 / nQ_th_view[ii, jj] * ((Q_th[ii, jj] - Q_o_from_center_sum) * Q_cj[ii, jj, kk] +
                                                                  Q_o_Q_cj_neighbors[kk])
                         if (cisnan(nQ_cj_view[ii,jj,kk])) or (nQ_cj_view[ii,jj,kk] < 0):
                             raise ValueError

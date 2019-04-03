@@ -87,7 +87,7 @@ class CAenvironment():
 
         self.grid = Hexgrid(self.Ny, self.Nx, ICstates=self.ICstates, reposeAngle=np.deg2rad(parameters['theta_r']),
                             dx=self.dx, terrain=self.terrain, global_grid=global_grid)
-
+        self.Q_a_south = self.grid.Q_a[-1,:].copy() # For absorbing boundary
         self.grid.g = parameters['g']  # Gravitational acceleration
         self.grid.f = parameters['f']  # Darcy-Weisbach coeff
         self.grid.a = parameters['a']  # Empirical coefficient (used in I_3)
@@ -177,7 +177,7 @@ class CAenvironment():
         fig = plt.figure(figsize=(10, 6))
         ax = [fig.add_subplot(2, 2, i, aspect='auto') for i in range(1, 5)]
         lnns1 = ax[0].plot(np.arange(len(self.ch_bot_thickness)), self.ch_bot_thickness, label='Q_th', color='black')
-        ax[0].plot((5, 5), (0, 3), 'k-')
+        # ax[0].plot((5, 5), (0, 3), 'k-')
         ax[0].set_title('1D Q_th, time step = %03i' % (i+1))
         ax[0].set_ylim([0, 3])
         ax[0].set_ylabel('Q_{th}')
@@ -215,7 +215,7 @@ class CAenvironment():
 
         # plt.figure(figsize=(10, 6))
         ax[1].plot(np.arange(len(self.ch_bot_speed)), self.ch_bot_speed)
-        ax[1].plot((5, 5), (0, 0.2), 'k-')
+        # ax[1].plot((5, 5), (0, 0.2), 'k-')
         ax[1].set_title('1D speed, time step = %03i' % (i + 1))
         ax[1].set_ylim([0, 0.2])
         ax[1].set_ylabel('Q_{v}')
@@ -223,7 +223,7 @@ class CAenvironment():
 
         # ax[2].figure(figsize=(10, 6))
         ax[2].plot(np.arange(len(self.ch_bot_speed)), self.ch_bot_outflow)
-        ax[2].plot((5, 5), (0, 2), 'k-')
+        # ax[2].plot((5, 5), (0, 2), 'k-')
         ax[2].set_title('Sum 1D outflow, time step = %03i' % (i + 1))
         ax[2].set_ylim([0, 2])
         ax[2].set_ylabel('sum(Q_{o}[y,x])')
@@ -391,6 +391,15 @@ class CAenvironment():
         #                                         (1.5 * self.grid.dt + self.grid.Q_th[self.y, self.x])
         #     self.grid.Q_th[self.y, self.x] += amount
 
+    def set_BC_absorb_bed(self):
+        self.grid.Q_d[-1,:] = parameters['q_d[interior]']
+        self.grid.Q_a[-1,:] = self.Q_a_south
+
+    def set_BC_absorb_current(self):
+        self.grid.Q_th[-2,:] = 0.0
+        self.grid.Q_cj[-2,:,:] = 0.0
+        self.grid.Q_o[-2,:,:] = 0.0
+        self.grid.Q_v[-2,:] = 0.0
 
     def writeToTxt(self, i):
         s1 = str(self.terrain) if self.terrain is None else self.terrain
@@ -481,8 +490,6 @@ if __name__ == "__main__":
     This script reads all configurations in configs.txt, and runs all the simulations\
     specified there!
     '''
-    import subprocess
-    subprocess.call(['./compile.sh'])
 
     ma.ensure_dir('./Bathymetry/')
     ma.ensure_dir('./Data/')
@@ -504,8 +511,11 @@ if __name__ == "__main__":
         j_values = []
         for j in range(parameters['num_iterations']):
 
-            CAenv.addSource(q_th0,q_v0, q_cj0)
+            # CAenv.addSource(q_th0,q_v0, q_cj0)
+            CAenv.add_source_constant(q_th0,q_v0, q_cj0)
             CAenv.CAtimeStep(compare_cy_py=False)
+            CAenv.set_BC_absorb_bed()
+            CAenv.set_BC_absorb_current()
             ind = np.unravel_index(np.argmax(CAenv.grid.Q_th, axis=None), CAenv.grid.Q_th.shape)
             CAenv.head_velocity.append(CAenv.grid.Q_v[ind])
             if ( (j+1) % sample_rate == 0) and j > 0:
