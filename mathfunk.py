@@ -84,7 +84,7 @@ def gen_sloped_plane(Ny: int, Nx: int, dx: float, angle: float, mat=None):
     pointy heads.
     '''
     vec = np.arange(Ny, dtype=np.double)
-    vec = vec * np.sqrt(3) / 2 * dx * np.sin(angle)
+    vec = vec * np.sqrt(3) / 2 * dx * np.tan(angle)
     if mat is None:
         vec = -np.array([vec, ] * Nx).transpose() + np.amax(vec)
     else:
