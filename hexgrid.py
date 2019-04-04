@@ -279,12 +279,12 @@ class Hexgrid():
 
 
 
-
-        self.Q_cj[self.Q_cj < 1e-16] = 0
-        self.Q_cbj[self.Q_cbj < 1e-16] = 0
-        self.Q_o[self.Q_o < 1e-16] = 0
-        self.Q_d[self.Q_d < 1e-16] = 0
-        self.Q_v[self.Q_v < 1e-16] = 0
+        # TODO:You should not do this as it may lead to Q_cj = 0,Q_th >0
+        # self.Q_cj[self.Q_cj < 1e-16] = 0
+        # self.Q_cbj[self.Q_cbj < 1e-16] = 0
+        # self.Q_o[self.Q_o < 1e-16] = 0
+        # self.Q_d[self.Q_d < 1e-16] = 0
+        # self.Q_v[self.Q_v < 1e-16] = 0
 
     def printSubstates_to_screen(self, text):
         fig = plt.figure(figsize=(10, 6))
