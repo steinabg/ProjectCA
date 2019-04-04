@@ -373,9 +373,11 @@ class CAenvironment():
 
     def add_source_constant(self, q_th0, q_v0, q_cj0):
         if (self.parameters['x'] is not None) and (self.parameters['y'] is not None):
-            self.grid.Q_v[self.y, self.x] = 0.2
-            self.grid.Q_cj[self.y, self.x, 0] = 0.003
-            self.grid.Q_th[self.y, self.x] = 1.5
+            self.grid.Q_v[self.y, self.x] = self.parameters['q_v[y,x]']
+            for i in range(parameters['nj']):
+                s = 'q_cj[y,x,{0}]'.format(i)
+                self.grid.Q_cj[self.y, self.x, i] = self.parameters[s]
+            self.grid.Q_th[self.y, self.x] = self.parameters['q_th[y,x]']
         else:
             pass
         # if((self.grid.Q_th[self.y,self.x] < self.parameters['q_th[y,x]']).sum()):
