@@ -367,7 +367,7 @@ class CAenvironment():
                 for particle_type in range(self.Nj):
                     self.grid.Q_cj[self.y, self.x, particle_type] = (self.grid.Q_cj[self.y, self.x, particle_type] * self.grid.Q_th[
                         self.y, self.x] + q_cj0 * q_th0 * self.grid.dt) / (
-                                                                    1.5 * self.grid.dt + self.grid.Q_th[self.y, self.x])
+                                                                    q_th0 * self.grid.dt + self.grid.Q_th[self.y, self.x])
         else:
             pass
 
