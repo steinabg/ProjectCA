@@ -100,10 +100,10 @@ def T_2(Ny, Nx, Nj, rho_j, rho_a, D_sj, nu, g, c_D, Q_v, v_sj, Q_cj, Q_cbj, Q_th
 
                 for kk in range(Nj):
                     nQ_cj[ii, jj, kk] = Q_cj[ii, jj, kk] - dt / ((1 - porosity) * Q_th[ii, jj]) * f_sj[kk]
-                    nQ_cbj[ii, jj, kk] = Q_cbj[ii, jj, kk] + dt / ((1 - porosity) * Q_d[ii, jj]) * \
+                    nQ_cbj[ii, jj, kk] = Q_cbj[ii, jj, kk] + dt / ((1 - porosity) * nQ_d[ii, jj]) * \
                                          (f_sj[kk] - Q_cbj[ii, jj, kk] * f_sj_sum)
                     # If this operation leads to unphysical state, undo the rule:
-                    if (nQ_cj[ii,jj,kk] < 0) or (np.isnan(nQ_cj[ii,jj,kk])):
+                    if (nQ_cj[ii,jj,kk] < 0) or (np.isnan(nQ_cj[ii,jj,kk])) or nQ_d[ii, jj] <= 0:
                         num_cells_invalid += 1
                         nQ_a[ii, jj] = Q_a[ii, jj]
                         nQ_d[ii, jj] = Q_d[ii, jj]

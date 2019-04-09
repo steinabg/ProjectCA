@@ -148,10 +148,10 @@ def T_2(int Ny,int Nx,int Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,dou
 
                 for kk in range(Nj):
                     nQ_cj_view[ii, jj, kk] = Q_cj[ii, jj,kk] - dt / ((1 - porosity) * Q_th[ii, jj]) * f_sj[kk]
-                    nQ_cbj_view[ii, jj, kk] = Q_cbj[ii, jj, kk] + dt / ((1 - porosity) * Q_d[ii, jj]) * \
+                    nQ_cbj_view[ii, jj, kk] = Q_cbj[ii, jj, kk] + dt / ((1 - porosity) * nQ_d_view[ii, jj]) * \
                                          (f_sj[kk] - Q_cbj[ii, jj, kk] * f_sj_sum)
                     # If this operation leads to unphysical state, undo the rule:
-                    if (nQ_cj_view[ii,jj,kk] < 0) or (cisnan(nQ_cj_view[ii,jj,kk])):
+                    if (nQ_cj_view[ii,jj,kk] < 0) or (cisnan(nQ_cj_view[ii,jj,kk])) or nQ_d_view[ii, jj] <= 0:
                         num_cells_invalid += 1
                         invalid = 1
                         break

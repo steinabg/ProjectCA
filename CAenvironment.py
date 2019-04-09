@@ -372,6 +372,7 @@ class CAenvironment():
             pass
 
     def add_source_constant(self, q_th0, q_v0, q_cj0):
+        '''Note: this may turn into a drain if Q_th[nb] > Q_th0 !'''
         if (self.parameters['x'] is not None) and (self.parameters['y'] is not None):
             self.grid.Q_v[self.y, self.x] = self.parameters['q_v[y,x]']
             for i in range(parameters['nj']):
@@ -513,8 +514,8 @@ if __name__ == "__main__":
         j_values = []
         for j in range(parameters['num_iterations']):
 
-            # CAenv.addSource(q_th0,q_v0, q_cj0)
-            CAenv.add_source_constant(q_th0,q_v0, q_cj0)
+            CAenv.addSource(q_th0,q_v0, q_cj0)
+            # CAenv.add_source_constant(q_th0,q_v0, q_cj0)
             CAenv.CAtimeStep(compare_cy_py=False)
             CAenv.set_BC_absorb_bed()
             CAenv.set_BC_absorb_current()
