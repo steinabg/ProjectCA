@@ -11,37 +11,39 @@ import transition_functions_cy as tra
 class Hexgrid():
     '''Simulates a turbidity current using a CA. '''
 
-    def __init__(self, Ny, Nx, ICstates=None, reposeAngle=np.deg2rad(0), dx=1, terrain=None,
-                 global_grid = True):
+    def __init__(self, parameters, ICstates=None, global_grid = True):
         ################ Constants ######################
-        self.g = 9.81  # Gravitational acceleration
-        self.f = 0.04  # Darcy-Weisbach coeff
-        self.a = 0.43  # Empirical coefficient (used in I_3)
-        self.rho_a = 1000  # ambient density
-        self.rho_j = np.array([2650], dtype=np.dtype("i"), order='C')  # List of current sediment densities
-        self.D_sj = np.array([0.00011])  # List of sediment-particle diameters
-        self.Nj = 1  # Number of sediment types
-        self.c_D = np.sqrt(0.003)  # Bed drag coefficient (table 3)
-        self.nu = 1.5182e-06  # Kinematic viscosity of water at 5 degrees celcius
-        self.porosity = 0.3
-        self.v_sj = ma.calc_settling_speed(self.D_sj, self.rho_a, self.rho_j, self.g,
-                                           self.nu)  # List of sediment-particle fall-velocities
+        self.g = parameters['g']  # Gravitational acceleration
+        self.f = parameters['f']  # Darcy-Weisbach coeff
+        self.a = parameters['a']  # Empirical coefficient (used in I_3)
+        self.rho_a = parameters['rho_a']  # ambient density
+        self.rho_j = parameters['rho_j']  # List of current sediment densities
+        self.D_sj = parameters['d_sj']  # List of sediment-particle diameters
+        self.Nj = parameters['nj']  # Number of sediment types
+        self.c_D = parameters['c_d']  # Bed drag coefficient (table 3)
+        self.nu = parameters['nu']  # Kinematic viscosity of water at 5 degrees celcius
+        self.porosity = parameters['porosity']
+        if parameters['sphere_settling_velocity'] != 'salles':
+            self.v_sj = parameters['sphere_settling_velocity']
+        else:
+            self.v_sj = ma.calc_settling_speed(self.D_sj, self.rho_a, self.rho_j,
+                                                    self.g, self.nu)
         self.dt = 0  # Some initial value
 
         # Constants used in I_1:
-        self.p_f = np.deg2rad(0)  # Height threshold friction angle
-        self.p_adh = 0
+        self.p_f = parameters['p_f']  # Height threshold friction angle
+        self.p_adh = parameters['p_adh']
         ############## Input variables ###################
-        self.Nx = Nx
-        self.Ny = Ny
-        self.dx = dx
-        self.reposeAngle = reposeAngle
+        self.Nx = parameters['nx']
+        self.Ny = parameters['ny']
+        self.dx = parameters['dx']
+        self.reposeAngle = parameters['theta_r']
 
         ################     Grid       ###################
-        self.X = np.zeros((Ny, Nx, 2))  # X[:,:,0] = X coords, X[:,:,1] = Y coords
-        for j in range(Ny):
-            self.X[j, :, 0] = j * dx / 2 + np.arange(Nx) * dx
-            self.X[j, :, 1] = -np.ones(Nx) * dx * np.sqrt(3) / 2 * j
+        self.X = np.zeros((self.Ny, self.Nx, 2))  # X[:,:,0] = X coords, X[:,:,1] = Y coords
+        for j in range(self.Ny):
+            self.X[j, :, 0] = j * self.dx / 2 + np.arange(self.Nx) * self.dx
+            self.X[j, :, 1] = -np.ones(self.Nx) * self.dx * np.sqrt(3) / 2 * j
 
         ################# Cell substate storage ####################
         self.Q_a   = np.zeros((self.Ny,self.Nx),order='C', dtype=np.double) # Cell altitude (bathymetry at t = 0)
@@ -63,7 +65,7 @@ class Hexgrid():
         ################### Set Initial conditions #####################
         if ICstates is not None: self.set_substate_ICs(ICstates)
         if global_grid == True:
-            self.setBathymetry(terrain)
+            self.setBathymetry(parameters['terrain'])
         self.seaBedDiff = np.zeros((self.Ny - 2, self.Nx - 2, 6))
         self.calc_bathymetryDiff()
 

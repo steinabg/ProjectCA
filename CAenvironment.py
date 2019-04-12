@@ -48,7 +48,6 @@ class CAenvironment():
         self.Ny = parameters['ny']
         self.Nx = parameters['nx']
         self.Nj = parameters['nj']
-        self.dx = parameters['dx']
 
 
 
@@ -85,27 +84,9 @@ class CAenvironment():
 
         self.ICstates = [self.Q_th, self.Q_v, self.Q_cj, self.Q_cbj, self.Q_d, self.Q_o]
 
-        self.grid = Hexgrid(self.Ny, self.Nx, ICstates=self.ICstates, reposeAngle=np.deg2rad(parameters['theta_r']),
-                            dx=self.dx, terrain=self.terrain, global_grid=global_grid)
+        self.grid = Hexgrid(parameters, ICstates=self.ICstates, global_grid=global_grid)
         self.Q_a_south = self.grid.Q_a[-1,:].copy() # For absorbing boundary
-        self.grid.g = parameters['g']  # Gravitational acceleration
-        self.grid.f = parameters['f']  # Darcy-Weisbach coeff
-        self.grid.a = parameters['a']  # Empirical coefficient (used in I_3)
-        self.grid.rho_a =parameters['rho_a'] # ambient density
-        self.grid.rho_j =parameters['rho_j'] # List of current sediment densities
-        self.grid.D_sj = parameters['d_sj'] # List of sediment-particle diameters
-        self.grid.Nj = parameters['nj']  # Number of sediment types
-        self.grid.c_D = parameters['c_d']  # Bed drag coefficient (table 3)
-        self.grid.nu = parameters['nu']  # Kinematic viscosity of water at 5 degrees celcius
-        self.grid.porosity = parameters['porosity']
-        self.grid.p_f = parameters['p_f']  # Height threshold friction angle
-        self.grid.p_adh = parameters['p_adh']
 
-        if parameters['sphere_settling_velocity'] != 'salles':
-            self.grid.v_sj = parameters['sphere_settling_velocity']
-        else:
-            self.grid.v_sj = ma.calc_settling_speed(self.grid.D_sj, self.grid.rho_a, self.grid.rho_j,
-                                                    self.grid.g, self.grid.nu)
         self.time = []
         self.mass = []
         self.massBed = []
