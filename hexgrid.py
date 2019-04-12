@@ -65,7 +65,7 @@ class Hexgrid():
         ################### Set Initial conditions #####################
         if ICstates is not None: self.set_substate_ICs(ICstates)
         if global_grid == True:
-            self.setBathymetry(parameters['terrain'])
+            self.setBathymetry(parameters['terrain'], slope=parameters['slope'])
         self.seaBedDiff = np.zeros((self.Ny - 2, self.Nx - 2, 6))
         self.calc_bathymetryDiff()
 
@@ -318,7 +318,7 @@ class Hexgrid():
         plt.tight_layout()
         plt.show()
 
-    def setBathymetry(self, terrain):
+    def setBathymetry(self, terrain, slope=0.08):
         if terrain is not None:
             x = np.linspace(0, 100, self.Nx)
             y = np.linspace(0, 100, self.Ny)
@@ -337,10 +337,10 @@ class Hexgrid():
                     self.Q_a += 10 * temp
                 elif terrain == 'rupert':
                     temp, junk = ma.generate_rupert_inlet_bathymetry(self.reposeAngle, self.dx, self.Ny,self.Nx)
-                    temp = ma.gen_sloped_plane(self.Ny,self.Nx,self.dx,np.deg2rad(-5),mat=temp.transpose())
+                    temp = ma.gen_sloped_plane(self.Ny,self.Nx,self.dx, -slope, mat=temp.transpose())
                     self.Q_a += temp
                 elif terrain == 'sloped_plane':
-                    self.Q_a += ma.gen_sloped_plane(self.Ny, self.Nx, self.dx, np.arctan(0.08))
+                    self.Q_a += ma.gen_sloped_plane(self.Ny, self.Nx, self.dx, slope)
                 else:
                     terrain_path = './Bathymetry/' + terrain + '.npy'
                     try:
