@@ -6,16 +6,16 @@ This repository contains source files of a cellular automaton used for simulatin
 
 ### Single core
 
-1. Run setup.py to compile the c++ code used for the CA transition functions.
-    - To compile use: python setup.py build_ext --inplace
-    - To generate cython HTML document use: cython -a transition_functions_cy.pyx
-2. Initial conditions are modified in the .ini files in the Config folder.
-3. Specify which .ini file to use by modifying the arguement in line 20 of GUI.py.
-4. Run GUI.py
+1. Run make setup to create directories and config file
+2. Specify which (.ini file) initial conditions to use by typing the name
+of the file in the Config/config.txt file. Typing multiple .ini files separated by 
+a line change results in sequential run of these ICs.
+3. Either directly run CAenvironment.py to start the simulation or run ./run_singlecore.sh
+to first compile Cython files first.
 
 
 
-### Using MPI
+### Using MPI (needs some work)
 1. Run setup.py to compile the c++ code used for the CA transition functions.
     - To compile use: python setup.py build_ext --inplace
     - To generate cython HTML document use: cython -a transition_functions_cy.pyx
@@ -31,7 +31,7 @@ is divided equally in the x and y direction.
 
 ### General
 * Make sure to create the following folder hierachy in your working
- directory, or you will get an error:
+ directory, or you might get an error:
 ```
 ./Data
 ./Data/mpi_combined_png
