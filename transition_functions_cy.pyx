@@ -137,7 +137,7 @@ def T_2(int Ny,int Nx,int Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,dou
                         function_reynolds = 0.586 * particle_reynolds ** (1.23)
 
                     Z_mj = kappa * csqrt(c_D * Q_v[ii, jj]) * function_reynolds / fall_velocity_dimless
-                    erosion_rate = (1.3 * 1e-7 * Z_mj ** (5)) / (1 + 4.3 * 1e-7 * Z_mj ** (5))
+                    erosion_rate = (1.3 * 1e-7 * Z_mj ** (5)) / (1 + 4.3 * 1e-7 * Z_mj ** (5)) * fall_velocity_dimless
 
                     # Exner equation:
                     f_sj[kk] = deposition_rate - erosion_rate * Q_cbj[ii, jj, kk]
@@ -259,8 +259,7 @@ def I_1(double[:,:] Q_th,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,double
                 # f = np.zeros((6),dtype=np.double, order='C')
                 f = <double*> calloc(6,sizeof(double))
                 factor_n = Q_th[ii,jj]/r
-                factor_r = csqrt(2*r*g_prime)*dt/(dx/2)
-                factor_r = factor_r if factor_r <= 1.0 else 1.0
+                factor_r = 0.7
                 Q_o_sum = 0.0
                 for zz in range(len(A)):
                     dir = A[zz]
