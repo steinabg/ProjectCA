@@ -65,7 +65,11 @@ class Hexgrid():
         ################### Set Initial conditions #####################
         if ICstates is not None: self.set_substate_ICs(ICstates)
         if global_grid == True:
-            self.setBathymetry(parameters['terrain'], slope=parameters['slope'])
+            try:
+                self.setBathymetry(parameters['terrain'], slope=parameters['slope'])
+            except KeyError:
+                print("Slope not defined! Using slope=0.08")
+                self.setBathymetry(parameters['terrain'])
         self.seaBedDiff = np.zeros((self.Ny - 2, self.Nx - 2, 6))
         self.calc_bathymetryDiff()
 
