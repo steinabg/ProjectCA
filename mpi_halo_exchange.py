@@ -115,11 +115,40 @@ def exchange_borders_matrix(local_petri_A):
 
 
 def iterateCA():
-    pass
-    # p_local_hexgrid.grid.time_step(global_grid=False)
+    p_local_hexgrid.grid.T_1()
+    exchange_borders_cube(p_local_hexgrid.grid.Q_cj, parameters['nj'])
+    exchange_borders_matrix(p_local_hexgrid.grid.Q_th)
+    set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims, local_bathy,
+                                        parameters)
+    p_local_hexgrid.grid.T_2()
+    exchange_borders_matrix(p_local_hexgrid.grid.Q_d)
+    exchange_borders_matrix(p_local_hexgrid.grid.Q_a)
+    exchange_borders_cube(p_local_hexgrid.grid.Q_cbj, parameters['nj'])
+    exchange_borders_cube(p_local_hexgrid.grid.Q_cj, parameters['nj'])
+    set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims, local_bathy,
+                                        parameters)
+    p_local_hexgrid.grid.I_1()
+    exchange_borders_cube(p_local_hexgrid.grid.Q_o, 6)
+    set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims, local_bathy,
+                                        parameters)
+    p_local_hexgrid.grid.I_2()
+    exchange_borders_matrix(p_local_hexgrid.grid.Q_th)
+    exchange_borders_cube(p_local_hexgrid.grid.Q_cj, parameters['nj'])
+    set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims, local_bathy,
+                                        parameters)
+    p_local_hexgrid.grid.I_3()
+    exchange_borders_matrix(p_local_hexgrid.grid.Q_v)
+    set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims, local_bathy,
+                                        parameters)
+    p_local_hexgrid.grid.I_4()
+    exchange_borders_matrix(p_local_hexgrid.grid.Q_d)
+    exchange_borders_matrix(p_local_hexgrid.grid.Q_a)
+    exchange_borders_cube(p_local_hexgrid.grid.Q_cbj, parameters['nj'])
+    set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims, local_bathy,
+                                        parameters)
 
 def gather_cube(local_petri_A, z_dim):
-    ans = np.zeros((p_local_grid_y_dim * p_y_dims, p_local_grid_x_dim * p_x_dims, z_dim),
+    ans = np.zeros((IMG_Y, IMG_X, z_dim),
                    dtype=np.double, order='C')
     # temp = np.zeros((p_local_grid_y_dim * p_y_dims, p_local_grid_x_dim * p_x_dims),
     #                 dtype=np.double, order='C')
@@ -129,43 +158,44 @@ def gather_cube(local_petri_A, z_dim):
 
 def gather_grid(local_petri_A):
     send = np.zeros((p_local_grid_y_dim, p_local_grid_x_dim), dtype=np.double)
-    TEMP = np.zeros((p_local_grid_y_dim * p_y_dims * p_local_grid_x_dim * p_x_dims), dtype=np.double)
-    IMAGE = np.zeros((p_local_grid_y_dim * p_y_dims * p_local_grid_x_dim * p_x_dims), dtype=np.double)
+    TEMP = np.zeros((IMG_Y, IMG_X), dtype=np.double)
 
+    send[:, :] = local_petri_A[1:-1, 1:-1].copy()
 
-    send[:, :] = local_petri_A[1:-1, 1:-1]
+    if my_rank != 0:
+        # print("rank = {0}\n"
+        #       "send = \n"
+        #       "{1}".format(rank, send))
+        comm.Send([send, MPI.DOUBLE], dest=0, tag=my_rank)
+    else:
+        i = 0 # Receive from rank i
+        x_start = 0
+        y_start = 0
+        for row in range(p_y_dims):
+            x_start = 0
+            for col in range(p_x_dims):
+                if i > 0:
+                    dest = np.zeros((local_dims[i][0],local_dims[i][1]), dtype=np.double)
+                    # print("i = {0}, dest.shape = {1}".format(i,dest.shape))
+                    # dest = TEMP[(row * local_dims[i][0]):((row + 1) * local_dims[i][0]),
+                    #        col * local_dims[i][1]:((col + 1) * local_dims[i][1])]
+                    comm.Recv([dest, MPI.DOUBLE], source=i, tag=i)
+                    # print("recved = \n"
+                    #       "{0}\n"
+                    #       "from rank {1}\n"
+                    #       "put in TEMP[{2}:{3},{4}:{5}]\n".format(dest, i,y_start, y_start + local_dims[i][0],
+                    #                                              x_start, x_start + local_dims[i][1]))
+                    # print("x_start = {0}, y_start = {1}".format(x_start, y_start))
+                    TEMP[(y_start):(y_start) + local_dims[i][0],
+                            x_start:(x_start + local_dims[i][1])] = dest.copy()
+                i += 1
+                x_start += local_dims[i-1][1]
+            y_start += local_dims[i-1][0]
 
-    comm.Gather(send, TEMP, 0)
-    # if rank == 0: print('TEMP = \n', TEMP.reshape(p_local_grid_y_dim*p_y_dims,p_local_grid_x_dim*p_x_dims))
-
-    if my_rank == 0:
-
-        Tempindex = 0
-        imageXcounter = 1
-        imageYcounter = 1
-        for i in range(p_local_grid_y_dim * p_y_dims * p_local_grid_x_dim * p_x_dims):
-
-            if ((i + 1) % (p_local_grid_x_dim) == 0):
-                IMAGE[i] = TEMP[Tempindex]
-
-                if (imageXcounter == (p_local_grid_x_dim * p_x_dims)):
-                    if (imageYcounter == p_local_grid_y_dim):
-                        Tempindex += 1
-                        imageYcounter = 0
-                    else:
-                        Tempindex = Tempindex - ((p_x_dims - 1) * p_local_grid_x_dim * p_local_grid_y_dim) + 1
-                    imageXcounter = 0
-                    imageYcounter += 1
-                else:
-                    Tempindex += (p_local_grid_x_dim * p_local_grid_y_dim) - p_local_grid_x_dim + 1
-            else:
-                IMAGE[i] = TEMP[Tempindex]
-                Tempindex += 1
-
-            imageXcounter += 1
-
-    IMAGE = IMAGE.reshape(p_local_grid_y_dim * p_y_dims, p_local_grid_x_dim * p_x_dims)
-    return IMAGE
+            # Insert own local grid
+            TEMP[0:local_dims[0][0], 0:local_dims[0][1]] = send.copy()
+    comm.barrier()
+    return TEMP
 
 def global_coords_to_local_coords(y, x, my_mpi_row, my_mpi_col, p_local_grid_x_dim, p_local_grid_y_dim):
     ''' Convert between global and local indices. Return (-1,-1) if outside local grid.'''
@@ -423,6 +453,61 @@ def gather_and_print_Qa_Qd(savename):
 
         plt.savefig(os.path.join('./Data/mpi_combined_png/', savename), bbox_inches='tight', pad_inches=0)
 
+def generate_p_local_hex_bathymetry(terrain):
+    if terrain == 'rupert':
+        global_bathy, junk = ma.generate_rupert_inlet_bathymetry(parameters['theta_r'],
+                                                                 parameters['dx'],
+                                                                 Ny=parameters['ny'],
+                                                                 Nx=parameters['nx'])
+        global_bathy = np.transpose(global_bathy)
+        local_bathy = global_bathy[(my_mpi_row*p_local_grid_y_dim):((my_mpi_row+1)*p_local_grid_y_dim),
+                                     my_mpi_col*p_local_grid_x_dim:((my_mpi_col+1)*p_local_grid_x_dim)]
+        return local_bathy
+
+def define_px_py_dims(num_procs, ny, nx):
+    '''
+
+    :param num_procs: total number of processors
+    :param ny: grid size in y direction
+    :param nx: grid size in x direction
+    :return: Number of processors in x and y direction
+    '''
+    assert num_procs > 0
+    if np.sqrt(num_procs) == int(np.sqrt(num_procs)): # If square number
+        p_y_dims = np.sqrt(num_procs)
+        p_x_dims = np.sqrt(num_procs)
+    elif num_procs % 2 == 0:
+        if ny >= nx:
+            p_x_dims = 2
+            p_y_dims = num_procs/2.0
+        else:
+            p_x_dims = num_procs / 2.0
+            p_y_dims = 2
+    else:
+        raise Exception("Please use an even or square number of processors!")
+    return int(p_y_dims), int(p_x_dims)
+
+
+def define_local_hexgrid_size(IMG_dim, p_xy_dim, my_dim_coord):
+    '''
+
+    :param IMG_dim: Size of combined grid in x or y direction
+    :param p_xy_dim: Number of procs in x or y direction
+    :param my_dim_coord: my row/col in the cartesian grid \
+    if defining y direction size -> give my_row
+    if defining x direction size -> give my_col
+    :return: Size of the local grid in either x or y direction
+    '''
+    if int(IMG_dim / p_xy_dim) == IMG_dim / p_xy_dim:
+        p_local_grid_dim = IMG_dim / p_xy_dim
+    else:
+        if my_dim_coord == 0:
+            remainder = IMG_dim - np.floor(IMG_dim / p_xy_dim) * p_xy_dim
+            p_local_grid_dim = np.floor(IMG_dim / p_xy_dim) + remainder
+        else:
+            p_local_grid_dim = np.floor(IMG_dim / p_xy_dim)
+    return int(p_local_grid_dim)
+
 if __name__ == "__main__":
     # Setup MPI
     comm = MPI.COMM_WORLD
@@ -442,26 +527,15 @@ if __name__ == "__main__":
     parameters = CAenv.import_parameters('scenario001B')
 
     if my_rank is 0:
-        # import pandas as pd
-        #
-        # desired_width = 320
-        # pd.set_option('display.width', desired_width)
-        # np.set_printoptions(linewidth=desired_width)
         result_grid = CAenv.CAenvironment(parameters)
-        # print("size = ", sys.getsizeof(result_grid))
 
     IMG_X = parameters['nx']
     IMG_Y = parameters['ny']
 
 
-
-
-
     ITERATIONS = parameters['num_iterations']
 
-
-    p_y_dims = int(np.sqrt(num_procs)) # num_procs must be a square number
-    p_x_dims = int(np.sqrt(num_procs))
+    p_y_dims, p_x_dims = define_px_py_dims(num_procs, IMG_Y, IMG_X)
 
     cartesian_communicator = comm.Create_cart((p_y_dims, p_x_dims), periods=(False, False))
 
@@ -471,9 +545,20 @@ if __name__ == "__main__":
     neighbor_processes[LEFT], neighbor_processes[RIGHT] = cartesian_communicator.Shift(1, 1)
 
 
-
-    p_local_grid_x_dim = int(IMG_X / p_x_dims)  # IMG_X must be divisible by p_x_dims
-    p_local_grid_y_dim = int(IMG_Y / p_y_dims)
+    p_local_grid_x_dim = define_local_hexgrid_size(IMG_X, p_x_dims, my_mpi_col)
+    p_local_grid_y_dim = define_local_hexgrid_size(IMG_Y, p_y_dims, my_mpi_row)
+    if my_rank == 0:
+        local_dims = []
+        r = 0
+        for row in range(p_y_dims):
+            for col in range(p_x_dims):
+                local_dims.append([])
+                local_dims[r].append(define_local_hexgrid_size(IMG_Y, p_y_dims, row))
+                local_dims[r].append(define_local_hexgrid_size(IMG_X, p_x_dims, col))
+                r += 1
+    # print("rank = {0}, local_x = {1}, local_y = {2}".format(my_rank, p_local_grid_x_dim, p_local_grid_y_dim))
+    # p_local_grid_x_dim = int(IMG_X / p_x_dims)  # IMG_X must be divisible by p_x_dims
+    # p_local_grid_y_dim = int(IMG_Y / p_y_dims)
 
     p_local_grid_parameters = parameters.copy()
     p_local_grid_parameters['x'] = None  # if None == no source
@@ -483,16 +568,6 @@ if __name__ == "__main__":
 
     set_local_grid_source_xy()
 
-    def generate_p_local_hex_bathymetry(terrain):
-        if terrain == 'rupert':
-            global_bathy, junk = ma.generate_rupert_inlet_bathymetry(parameters['theta_r'],
-                                                                     parameters['dx'],
-                                                                     Ny=parameters['ny'],
-                                                                     Nx=parameters['nx'])
-            global_bathy = np.transpose(global_bathy)
-            local_bathy = global_bathy[(my_mpi_row*p_local_grid_y_dim):((my_mpi_row+1)*p_local_grid_y_dim),
-                                         my_mpi_col*p_local_grid_x_dim:((my_mpi_col+1)*p_local_grid_x_dim)]
-            return local_bathy
     local_bathy = generate_p_local_hex_bathymetry(parameters['terrain'])
 
     p_local_hexgrid = CAenv.CAenvironment(p_local_grid_parameters, global_grid=False)
@@ -604,39 +679,8 @@ if __name__ == "__main__":
             save_dt.append(p_global_dt)
 
         # Iterate CA
-        # Can't use p_local_hexgrid.grid.time_step(global_grid=False).
-        # Must exchange borders between each iteraction/transform
-        p_local_hexgrid.grid.T_1()
-        p_local_hexgrid.grid.sanityCheck()
-        exchange_borders_cube(p_local_hexgrid.grid.Q_cj, parameters['nj'])
-        exchange_borders_matrix(p_local_hexgrid.grid.Q_th)
-        set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims, local_bathy, parameters)
-        p_local_hexgrid.grid.T_2()
-        p_local_hexgrid.grid.sanityCheck()
-        exchange_borders_matrix(p_local_hexgrid.grid.Q_d)
-        exchange_borders_matrix(p_local_hexgrid.grid.Q_a)
-        exchange_borders_cube(p_local_hexgrid.grid.Q_cbj, parameters['nj'])
-        exchange_borders_cube(p_local_hexgrid.grid.Q_cj, parameters['nj'])
-        set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims, local_bathy, parameters)
-        p_local_hexgrid.grid.I_1()
-        p_local_hexgrid.grid.sanityCheck()
-        exchange_borders_cube(p_local_hexgrid.grid.Q_o, 6)
-        set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims, local_bathy, parameters)
-        p_local_hexgrid.grid.I_2()
-        p_local_hexgrid.grid.sanityCheck()
-        exchange_borders_matrix(p_local_hexgrid.grid.Q_th)
-        exchange_borders_cube(p_local_hexgrid.grid.Q_cj, parameters['nj'])
-        set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims, local_bathy, parameters)
-        p_local_hexgrid.grid.I_3()
-        p_local_hexgrid.grid.sanityCheck()
-        exchange_borders_matrix(p_local_hexgrid.grid.Q_v)
-        set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims, local_bathy, parameters)
-        p_local_hexgrid.grid.I_4()
-        p_local_hexgrid.grid.sanityCheck()
-        exchange_borders_matrix(p_local_hexgrid.grid.Q_d)
-        exchange_borders_matrix(p_local_hexgrid.grid.Q_a)
-        exchange_borders_cube(p_local_hexgrid.grid.Q_cbj, parameters['nj'])
-        set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims, local_bathy, parameters)
+        iterateCA()
+
 
         # Debugging
         # image_Q_th = gather_grid(p_local_hexgrid.grid.Q_th)
