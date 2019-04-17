@@ -112,6 +112,159 @@ def exchange_borders_matrix(local_petri_A):
     )
     local_petri_A[:, 0] = local_grid_eb.copy()
 
+def get_mpi_nb_flux(t, b, l, r):
+    nj = parameters['nj']
+    # Receive buffers
+    top = np.zeros((p_local_grid_x_dim + 2, nj+1), dtype=np.double, order='C')
+    bot = np.zeros((p_local_grid_x_dim + 2, nj+1), dtype=np.double, order='C')
+    left = np.zeros((p_local_grid_y_dim + 2, nj+1), dtype=np.double, order='C')
+    right = np.zeros((p_local_grid_y_dim + 2, nj+1), dtype=np.double, order='C')
+    nw = ne = se = sw = np.zeros((1), dtype=np.double) # Corner receive buffers
+
+    # Send up, recv from down
+    comm.Sendrecv(
+        [t, MPI.DOUBLE],
+        neighbor_processes[UP],
+        0,
+        [bot, MPI.DOUBLE],
+        neighbor_processes[DOWN],
+        0
+    )
+    # Send down, recv from up
+    comm.Sendrecv(
+        [b, MPI.DOUBLE],
+        neighbor_processes[DOWN],
+        0,
+        [top, MPI.DOUBLE],
+        neighbor_processes[UP],
+        0
+    )
+    # Send left, recv from right
+    comm.Sendrecv(
+        [l, MPI.DOUBLE],
+        neighbor_processes[LEFT],
+        0,
+        [right, MPI.DOUBLE],
+        neighbor_processes[RIGHT],
+        0
+    )
+    # Send right, recv from left
+    comm.Sendrecv(
+        [r, MPI.DOUBLE],
+        neighbor_processes[RIGHT],
+        0,
+        [left, MPI.DOUBLE],
+        neighbor_processes[LEFT],
+        0
+    )
+    send_nw = t[0]
+    send_ne = t[-1]
+    send_se = b[-1]
+    send_sw = b[0]
+
+    # Send NW, recv from SE
+    comm.Sendrecv(
+        [send_nw, 1, MPI.DOUBLE],
+        neighbor_processes[NW],
+        0,
+        [se, 1, MPI.DOUBLE],
+        neighbor_processes[SE],
+        0
+    )
+    # Send SE, recv from NW
+    comm.Sendrecv(
+        [send_se, 1, MPI.DOUBLE],
+        neighbor_processes[SE],
+        0,
+        [nw, 1, MPI.DOUBLE],
+        neighbor_processes[NW],
+        0
+    )
+    # Send NE, recv from SW
+    comm.Sendrecv(
+        [send_ne, 1, MPI.DOUBLE],
+        neighbor_processes[NE],
+        0,
+        [sw, 1, MPI.DOUBLE],
+        neighbor_processes[SW],
+        0
+    )
+    # Send SW, recv from NE
+    comm.Sendrecv(
+        [send_sw, 1, MPI.DOUBLE],
+        neighbor_processes[SW],
+        0,
+        [ne, 1, MPI.DOUBLE],
+        neighbor_processes[NE],
+        0
+    )
+    result = [top, bot, left, right, nw, ne, se, sw]
+    return result
+
+def mpi_toppling_fix():
+    g = p_local_hexgrid.grid
+    t = g.t
+    b = g.b
+    l = g.l
+    r = g.r
+    borders = get_mpi_nb_flux(t,b,l,r)
+    # print("rank = ", my_rank, " max(right) = ", np.max(borders[3][:,0]))
+
+    if my_mpi_row > 0:
+        # print("rank ", my_rank, " fixing upper")
+        # Update upper bound
+        top = borders[0]
+        for j in range(1,p_local_grid_x_dim+1):
+            if top[j, 0]:
+                nQ_d_top = g.Q_d[1, j] + top[j, 0]
+                # print("q_d_top = ", nQ_d_top)
+                for l in range(parameters['nj']):
+                    old_cut_top = g.Q_cbj[1,j,l] * g.Q_d[1, j]
+                    g.Q_cbj[1, j, l] = (old_cut_top + top[j, l+1]) / nQ_d_top
+                    # if g.Q_cbj[1, j, l] != 1:
+                    #     print("Q_cbj =", g.Q_cbj[1,j,l])
+                # print("Q_d[0,j] = ", g.Q_d[0,j])
+                g.Q_d[1, j] = nQ_d_top
+                # print("nQ_d[0,j] = ", g.Q_d[0, j])
+    if my_mpi_row < (p_y_dims):
+        # print("rank ", my_rank, " fixing lower")
+        # Update lower bound
+        bot = borders[1]
+        for j in range(1,p_local_grid_x_dim+1):
+            if bot[j, 0]:
+                nQ_d_bot = g.Q_d[-2, j] + bot[j, 0]
+                for l in range(parameters['nj']):
+                    old_cut_bot = g.Q_cbj[-2,j,l] * g.Q_d[-2, j]
+                    g.Q_cbj[-2, j, l] = (old_cut_bot + bot[j, l+1]) / nQ_d_bot
+                g.Q_d[-2, j] = nQ_d_bot
+    if my_mpi_col > 0:
+        # print("rank ", my_rank, " fixing left")
+        # Update left bounds
+        left = borders[2]
+        for j in range(1,p_local_grid_y_dim +1):
+            if left[j, 0]:
+                # print("here! rank = ", my_rank, " left[j,0] = ", left[j,0])
+                nQ_d_left = g.Q_d[j, 1] + left[j, 0]
+                for l in range(parameters['nj']):
+                    old_cut_left = g.Q_cbj[j,1,l] * g.Q_d[j,1]
+                    g.Q_cbj[j, 1, l] = (old_cut_left + left[j, l+1]) / nQ_d_left
+                    # if g.Q_cbj[1, j, l] == 1:
+                    #     print("left[j,:] = ", left[j,:])
+                    #     print("Q_cbj =", g.Q_cbj[1,j,l])
+                g.Q_d[j, 1] = nQ_d_left
+    if my_mpi_col < (p_x_dims):
+        # print("rank ", my_rank, " fixing right")
+        # Update right bounds
+        right = borders[3]
+        for j in range(1, p_local_grid_y_dim + 1):
+            if right[j, 0]:
+                # print("here! rank = ", my_rank, " right[j,0] = ", right[j,0])
+                nQ_d_right = g.Q_d[j, -2] + right[j, 0]
+                for l in range(parameters['nj']):
+                    old_cut_right = g.Q_cbj[j, -2, l] * g.Q_d[j, -2]
+                    g.Q_cbj[j, -2, l] = (old_cut_right + right[j, l+1]) / nQ_d_right
+                g.Q_d[j, -2] = nQ_d_right
+
 
 
 def iterateCA():
@@ -141,6 +294,12 @@ def iterateCA():
     set_p_local_hex_boundary_conditions(p_local_hexgrid, my_mpi_col, my_mpi_row, p_y_dims, p_x_dims, local_bathy,
                                         parameters)
     p_local_hexgrid.grid.I_4()
+    # if my_rank != 0:
+    #     print("0 my rank = ", my_rank, "\nnonzero Qd=\n", np.where(np.logical_and(p_local_hexgrid.grid.Q_d > 1, np.isfinite(p_local_hexgrid.grid.Q_d))))
+    mpi_toppling_fix()
+    # if my_rank != 0:
+    #     print("1 my rank = ", my_rank, "\nnonzero Qd=\n",
+    #           np.where(np.logical_and(p_local_hexgrid.grid.Q_d > 1, np.isfinite(p_local_hexgrid.grid.Q_d))))
     exchange_borders_matrix(p_local_hexgrid.grid.Q_d)
     exchange_borders_matrix(p_local_hexgrid.grid.Q_a)
     exchange_borders_cube(p_local_hexgrid.grid.Q_cbj, parameters['nj'])
@@ -460,9 +619,12 @@ def generate_p_local_hex_bathymetry(terrain):
                                                                  Ny=parameters['ny'],
                                                                  Nx=parameters['nx'])
         global_bathy = np.transpose(global_bathy)
-        local_bathy = global_bathy[(my_mpi_row*p_local_grid_y_dim):((my_mpi_row+1)*p_local_grid_y_dim),
-                                     my_mpi_col*p_local_grid_x_dim:((my_mpi_col+1)*p_local_grid_x_dim)]
-        return local_bathy
+    if terrain is None:
+        global_bathy = np.zeros((parameters['ny'],parameters['nx']))
+
+    local_bathy = global_bathy[(my_mpi_row*p_local_grid_y_dim):((my_mpi_row+1)*p_local_grid_y_dim),
+                                 my_mpi_col*p_local_grid_x_dim:((my_mpi_col+1)*p_local_grid_x_dim)]
+    return local_bathy
 
 def define_px_py_dims(num_procs, ny, nx):
     '''
@@ -518,13 +680,16 @@ if __name__ == "__main__":
     DOWN = 1
     LEFT = 2
     RIGHT = 3
+    NW = 4
+    NE = 5
+    SE = 6
+    SW = 7
 
-    neighbor_processes = [0, 0, 0, 0]
-
+    neighbor_processes = [0, 0, 0, 0, 0, 0, 0, 0]
 
     # TODO: Fix toppling rule behaviour for MPI
     # Load CA parameters from file
-    parameters = CAenv.import_parameters('scenario001B')
+    parameters = CAenv.import_parameters('toppling_test')
 
     if my_rank is 0:
         result_grid = CAenv.CAenvironment(parameters)
@@ -547,6 +712,22 @@ if __name__ == "__main__":
 
     p_local_grid_x_dim = define_local_hexgrid_size(IMG_X, p_x_dims, my_mpi_col)
     p_local_grid_y_dim = define_local_hexgrid_size(IMG_Y, p_y_dims, my_mpi_row)
+    procs_map = np.zeros((p_y_dims, p_x_dims), dtype='i', order='C') # Complete map of mpi proc grid
+    r = 0
+    for row in range(p_y_dims):
+        for col in range(p_x_dims):
+            procs_map[row, col] = r
+            r += 1
+    def define_mpi_diagonals(neighbor_processes):
+        nb_index = [[-1,-1],[-1,1],[1,1],[1,-1]] # NE, NW, SE, SW
+        for i in range(4):
+            nb_row = my_mpi_row + nb_index[i][0]
+            nb_col = my_mpi_col + nb_index[i][1]
+            if (nb_row >= 0) and (nb_row < p_y_dims) and (nb_col >= 0) and (nb_col < p_x_dims):
+                neighbor_processes[i+4] = procs_map[nb_row, nb_col]
+            else:
+                neighbor_processes[i + 4] = -1
+    define_mpi_diagonals(neighbor_processes)
     if my_rank == 0:
         local_dims = []
         r = 0
@@ -569,6 +750,7 @@ if __name__ == "__main__":
     set_local_grid_source_xy()
 
     local_bathy = generate_p_local_hex_bathymetry(parameters['terrain'])
+    # print("type(local_bathy)= ", type(local_bathy))
 
     p_local_hexgrid = CAenv.CAenvironment(p_local_grid_parameters, global_grid=False)
     # print("rank= ", my_rank, " np.where(p_local_hexgrid.grid.Q_th>0): ", np.where(p_local_hexgrid.grid.Q_th>0))
@@ -781,6 +963,7 @@ if __name__ == "__main__":
         upper_lim = num_figs
         # print(upper_lim)
     for i in range(my_rank*figs_per_proc,upper_lim):
+        # print("i = ", i, " len(i_sample_) = ", len(i_sample_values))
         IMAGE_Q_th, IMAGE_Q_cbj, IMAGE_Q_cj, IMAGE_Q_d,\
         ch_bot_outflow, ch_bot_thickness, ch_bot_speed,\
         ch_bot_sediment, ch_bot_sediment_cons, ch_bot_thickness_cons =\

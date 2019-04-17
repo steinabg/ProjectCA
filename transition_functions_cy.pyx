@@ -391,6 +391,12 @@ def I_4(double[:,:] Q_d,int Ny,int Nx,int Nj,double dx,double reposeAngle,double
     cdef int nb_no, nb_ii, nb_jj, ll
     cdef double *diff
     cdef double angle, frac, deltaS
+    #### MPI: For sending deltaS back to neighbor rank
+    top = np.zeros((Nx, Nj+1), dtype=np.double, order='C')
+    bot = np.zeros((Nx, Nj+1), dtype=np.double, order='C')
+    left = np.zeros((Ny, Nj+1), dtype=np.double, order='C')
+    right = np.zeros((Ny, Nj+1), dtype=np.double, order='C')
+
 
     # nb_index = [[-1, 0], [-1, 1], [0, 1], [1, 0], [1, -1], [0, -1]]
     cdef int nb_index[6][2]
@@ -443,9 +449,28 @@ def I_4(double[:,:] Q_d,int Ny,int Nx,int Nj,double dx,double reposeAngle,double
 
                         nQ_d_view[ii,jj] -= deltaS
                         nQ_a_view[ii,jj] -= deltaS
+
+                        # Mass to be transferred through MPI
+                        if (nb_ii == 0):
+                            top[nb_jj][0] += deltaS
+                            for ll in range(Nj):
+                                top[nb_jj][ll+1] += nQ_cbj_view[ii,jj, ll] * deltaS
+                        elif (nb_ii == Ny - 1):
+                            bot[nb_jj][0] += deltaS
+                            for ll in range(Nj):
+                                bot[nb_jj][ll+1] += nQ_cbj_view[ii,jj, ll] * deltaS
+                        elif (nb_jj == 0):
+                            left[nb_ii][0] += deltaS
+                            for ll in range(Nj):
+                                left[nb_ii][ll+1] += nQ_cbj_view[ii,jj, ll] * deltaS
+                        elif(nb_jj == Nx - 1):
+                            right[nb_ii][0] += deltaS
+                            for ll in range(Nj):
+                                right[nb_ii][ll+1] += nQ_cbj_view[ii,jj, ll] * deltaS
+
                 free(give_dir)
                 free(diff)
 
 
 
-    return nQ_a, nQ_d, nQ_cbj
+    return nQ_a, nQ_d, nQ_cbj, top, bot, left, right
