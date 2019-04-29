@@ -259,7 +259,7 @@ def I_1(double[:,:] Q_th,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,double
                 # f = np.zeros((6),dtype=np.double, order='C')
                 f = <double*> calloc(6,sizeof(double))
                 factor_n = Q_th[ii,jj]/r
-                factor_r = 0.7
+                factor_r = 1
                 Q_o_sum = 0.0
                 for zz in range(len(A)):
                     dir = A[zz]
@@ -362,13 +362,13 @@ def I_3(double g,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,int Ny,int Nx,
                 for kk in range(6):
                     nb_ii = ii + nb_index[kk][0]
                     nb_jj = jj + nb_index[kk][1]
-                    slope = (Q_a[ii,jj] + Q_th[ii,jj]) - (Q_a[nb_ii, nb_jj] + Q_th[nb_ii, nb_jj])
-                    if slope < 0:
+                    slope = np.abs((Q_a[ii,jj] + Q_th[ii,jj]) - (Q_a[nb_ii, nb_jj] + Q_th[nb_ii, nb_jj]))
+                    if Q_o[ii,jj,kk] <= 0 or np.isinf(slope):
                         slope = 0
                         num_removed += 1
                     U += csqrt( 8 * g_prime * Q_cj_sum * Q_o[ii,jj,kk] * slope / (f * (1 + a)) )
                     if (cisnan(U)):
-                        raise Exception("U is nan")
+                        raise Exception("U is nan", slope)
                 if num_removed < 6:
                     nQ_v_view[ii,jj] = U/(6 - num_removed)
                 if cisnan(nQ_v_view[ii, jj]):

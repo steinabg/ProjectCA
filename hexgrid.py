@@ -68,12 +68,25 @@ class Hexgrid():
             try:
                 self.setBathymetry(parameters['terrain'], slope=parameters['slope'])
             except KeyError:
-                print("Slope not defined! Using slope=0.08")
+                print("Slope not defined! Using slope=0.08 if terrain is rupert or slope, ignore this if otherwise!")
                 self.setBathymetry(parameters['terrain'])
         self.seaBedDiff = np.zeros((self.Ny - 2, self.Nx - 2, 6))
         self.calc_bathymetryDiff()
 
-
+        # Run toppling rule until convergence, before starting simulation
+        if global_grid is True:
+            try:
+                if parameters['converged_toppling'][0]:
+                    tol = parameters['converged_toppling'][1]
+                    print("Running toppling rule until converged with tol = {0}. This may take a while!".format(tol))
+                    while True:
+                        Q_d_old = self.Q_d.copy()
+                        self.I_4()
+                        if ma.two_norm(Q_d_old[1:-1,1:-1], self.Q_d[1:-1,1:-1]) <= tol:
+                            break
+                    print("Convergence achieved. Continuing initialization.")
+            except KeyError:
+                pass
 
 
 
@@ -345,6 +358,27 @@ class Hexgrid():
                     self.Q_a += temp
                 elif terrain == 'sloped_plane':
                     self.Q_a += ma.gen_sloped_plane(self.Ny, self.Nx, self.dx, slope)
+                elif terrain == 'ranfjorden':
+                    #### Redefine X using x0 and y0 ######
+                    Ny = self.Ny
+                    Nx = self.Nx
+                    self.x0 = x0 = 452000
+                    self.y0 = y0 = 7350000
+                    self.dx = dx = 50
+                    self.X = np.zeros((Ny, Nx, 2))  # X[:,:,0] = X coords, X[:,:,1] = Y coords
+                    for j in range(Ny):
+                        self.X[j, :, 0] = x0 + j * dx / 2 + np.arange(Nx) * dx
+                        self.X[j, :, 1] = y0 + np.ones(Nx) * dx * np.sqrt(3) / 2 * j
+
+                    import xarray as xr
+                    from scipy.interpolate import RectBivariateSpline
+                    ncfile = './Bathymetry/ranfjorden_depth.nc'
+                    with xr.open_dataset(ncfile) as d:
+                        # Create spline interpolation object
+                        b = RectBivariateSpline(d.yc, d.xc, d.depth)
+                        # evaluate spline at positions of hexgrid cells
+                        temp = b(self.X[:, :, 1], self.X[:, :, 0], grid=False)
+                        self.Q_a -= temp
                 else:
                     terrain_path = './Bathymetry/' + terrain + '.npy'
                     try:
@@ -397,21 +431,3 @@ class Hexgrid():
             else:
                 dt = 9999999 # Set a large number so we can use MPI.Reduce MIN.
         return dt
-
-    def printCA(self):
-        outflowNo = np.array(['NW', 'NE', 'E', 'SE', 'SW', 'W'])
-        try:
-            print("Time step = ", self.dt)
-        except:
-            print("No dt defined yet!")
-        print("self.Q_th =\n", self.Q_th)
-        print("self.Q_v  =\n", self.Q_v)
-
-        for i in range(1):
-            print("self.Q_cj =\n", self.Q_cj[:, :, i])
-        for i in range(1):
-            print("self.Q_cbj=\n", self.Q_cbj[:, :, i])
-        print("self.Q_d  =\n", self.Q_d)
-        print("self.Q_a  =\n", self.Q_a)
-        # for i in range(6):
-        #     print("self.Q_o[",outflowNo[i],"]=\n", self.Q_o[:,:,i])

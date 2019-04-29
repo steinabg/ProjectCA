@@ -334,7 +334,7 @@ class Ui_MainWindow(object):
 
             if ( (i+1) % int(self.numIterationSample_lineEdit.text()) == 0) and i > 0:
                 CAenv.sampleValues()
-                CAenv.printSubstates(i)
+                CAenv.plot2d(i)
         CAenv.plotStabilityCurves(i)
         CAenv.writeToTxt(i)
         self.progressBar.setValue(100)

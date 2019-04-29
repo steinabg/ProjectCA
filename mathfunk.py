@@ -106,7 +106,24 @@ def gen_sloped_plane_batch(Ny: int, Nx:int, dx: float, angles: list):
         result.append(gen_sloped_plane(Ny, Nx, dx, angle))
     return result
 
-def calc_settling_speed(D_sg: np.ndarray, rho_a, rho_j,g,nu):
+def two_norm(a: np.ndarray, b: np.ndarray):
+    return np.sqrt(np.sum(np.power(a-b, 2)))
+
+def axisEqual3D(ax):
+    extents = np.array([getattr(ax, 'get_{}lim'.format(dim))() for dim in 'xyz'])
+    sz = extents[:,1] - extents[:,0]
+    centers = np.mean(extents, axis=1)
+    maxsize = max(abs(sz))
+    r = maxsize/2
+    for ctr, dim in zip(centers, 'xyz'):
+        getattr(ax, 'set_{}lim'.format(dim))(ctr - r, ctr + r)
+
+def find_index_nearest(array, value):
+    array = np.asarray(array)
+    idx = (np.abs(array - value)).argmin()
+    return idx
+
+def calc_settling_speed(D_sg: np.ndarray, rho_a, rho_j,g,nu, method='VanRijn'):
     '''
 
     :param D_sg: Diameter of particles. np.array(Nj)
@@ -117,13 +134,21 @@ def calc_settling_speed(D_sg: np.ndarray, rho_a, rho_j,g,nu):
     :return: Settling speed of particles
     '''
     v_s = []
-    for i in range(D_sg.shape[0]):
-        if(D_sg[i]<= 100e-06):
-            v_s.append(1/18*(rho_j[i]/rho_a-1)*g*D_sg[i]**2/nu)
-        elif(D_sg[i]<= 1000e-06):
-            v_s.append(10*nu/D_sg[i]*(np.sqrt(1+0.01*((rho_j[i]/rho_a-1)*g*D_sg[i]**3)/nu**2)-1))
-        else:
-            v_s.append(1.1*np.sqrt((rho_j[i]/rho_a-1)*g*D_sg[i]))
+    method = method.lower()
+    if method == 'vanrijn':
+        for i in range(D_sg.shape[0]):
+            if(D_sg[i]<= 100e-06):
+                v_s.append(1/18*(rho_j[i]/rho_a-1)*g*D_sg[i]**2/nu)
+            elif(D_sg[i]<= 1000e-06):
+                v_s.append(10*nu/D_sg[i]*(np.sqrt(1+0.01*((rho_j[i]/rho_a-1)*g*D_sg[i]**3)/nu**2)-1))
+            else:
+                v_s.append(1.1*np.sqrt((rho_j[i]/rho_a-1)*g*D_sg[i]))
+    elif method == 'soulsby':
+        for i in range(D_sg.shape[0]):
+            dimless_d = (g * (rho_j[i]/rho_a - 1)/ nu**2) ** (1/3) * D_sg[i]
+            v_s.append(nu/D_sg[i] * ( np.sqrt(10.36**2 + 1.049 * dimless_d ** 3) - 10.36))
+    else:
+        raise KeyError('Method {0} is not a valid option. Options are vanrijn, soulsby'.format(method))
     v_s = np.asarray(v_s)
     return v_s
 
