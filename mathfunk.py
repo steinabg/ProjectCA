@@ -152,9 +152,6 @@ def calc_settling_speed(D_sg: np.ndarray, rho_a, rho_j,g,nu, method='VanRijn'):
     v_s = np.asarray(v_s)
     return v_s
 
-
-
-
 def calc_g_prime(Nj, Q_cj, rho_j, rho_a, g = 9.81): 
     '''
     This function calculates the reduced gravity $g'$. Returns reduced gravity matrix numpy.ndarray(Ny,Nx).
@@ -184,7 +181,7 @@ def calc_g_prime(Nj, Q_cj, rho_j, rho_a, g = 9.81):
     >>> rho_j = np.array([1])
     >>> rho_a = 0.5
     >>> calc_g_prime(Nj,Q_cj,rho_j,rho_a)
-    ... array([[ 9.81,  9.81,  9.81],
+    ... np.ndarray([[ 9.81,  9.81,  9.81],
     ...        [ 9.81,  9.81,  9.81],
     ...        [ 9.81,  9.81,  9.81]])
     
@@ -197,4 +194,16 @@ def calc_g_prime(Nj, Q_cj, rho_j, rho_a, g = 9.81):
     except:
         print("Error: Could not calculate reduced gravity!")
 
-
+def is_square(apositiveint):
+    """
+    This function checks whether an int is a square number.
+    :param apositiveint: integer
+    :return: boolean value
+    """
+    x = apositiveint // 2
+    seen = set([x])
+    while x * x != apositiveint:
+        x = (x + (apositiveint // x)) // 2
+        if x in seen: return False
+        seen.add(x)
+    return True

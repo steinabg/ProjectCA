@@ -97,7 +97,7 @@ def T_2(int Ny,int Nx,int Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,dou
         for jj in range(Nx):
             nQ_th_view[ii,jj] = Q_th[ii,jj]
             invalid = 0
-            if (Q_th[ii, jj] > 0) and (Q_v[ii, jj] > 0) and (ii > 0) and (ii < Ny - 1) and (jj > 0) and (jj < Nx - 1):
+            if (Q_th[ii, jj] > 0) and (ii > 0) and (ii < Ny - 1) and (jj > 0) and (jj < Nx - 1):
                 num_cells += 1
                 # Deposition initialization:
                 sediment_mean_size = 1.0
@@ -110,13 +110,15 @@ def T_2(int Ny,int Nx,int Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,dou
                 for kk in range(Nj):
                     # Deposition part:
                     sum_q_cj += Q_cj[ii, jj, kk]
-                    sediment_mean_size *= Q_cj[ii, jj, kk] * D_sj[kk]
+                    # sediment_mean_size *= Q_cj[ii, jj, kk] * D_sj[kk]
+                    sediment_mean_size *= D_sj[kk] ** Q_cj[ii, jj, kk]
 
                     # Erosion part:
                     log_2_D_sj[kk] = clog2(D_sj[kk])
 
                 kappa = 1 - 0.288 * cstd(log_2_D_sj, Nj)
-                sediment_mean_size = sediment_mean_size ** (1.0 / Nj) / sum_q_cj
+                # sediment_mean_size = sediment_mean_size ** (1.0 / Nj) / sum_q_cj
+                sediment_mean_size = sediment_mean_size ** (1.0 / sum_q_cj)
                 # f_sj = np.zeros((Nj), dtype=np.double, order='C')
                 f_sj = <double*> calloc(Nj,sizeof(double))
                 f_sj_sum = 0.0
@@ -205,7 +207,7 @@ def I_1(double[:,:] Q_th,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,double
     cdef double Average, r, h_k, g_prime, height_center, Q_o_sum
     cdef double *nb_h
     cdef double *f
-    cdef double factor_n, factor_r, sum_nb_h_in_A
+    cdef double factor_n, factor_r, sum_nb_h_in_A, t
     # nb_index = [[-1,0],[-1,1],[0,1],[1,0],[1,-1],[0,-1]]
     cdef int nb_index[6][2]
     nb_index[0][:] = [-1, 0]
@@ -214,6 +216,22 @@ def I_1(double[:,:] Q_th,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,double
     nb_index[3][:] = [1, 0]
     nb_index[4][:] = [1, -1]
     nb_index[5][:] = [0, -1]
+
+    # Calculate global relaxation constant
+    factor_r = 1.0
+    for ii in range(1, Ny - 1):
+        for jj in range(1, Nx - 1):
+            if (Q_th[ii,jj] > 0.0): # If cell has flow perform algorithm
+                g_prime = 0.0
+                for kk in range(Nj):
+                    g_prime += g * (Q_cj[ii, jj, kk] * (rho_j[kk] - rho_a) / rho_a)
+                h_k = 0.5 * Q_v[ii,jj] * Q_v[ii,jj] / g_prime
+                r = Q_th[ii,jj] + h_k
+                t = np.sqrt(2 * r * g_prime) * dt / dx
+                if t < factor_r:
+                    factor_r = t
+    if factor_r < 0.2: factor_r = 0.2
+
     for ii in range(1, Ny - 1):
         for jj in range(1, Nx - 1):
             if (Q_th[ii,jj] > 0.0): # If cell has flow perform algorithm
@@ -259,7 +277,7 @@ def I_1(double[:,:] Q_th,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,double
                 # f = np.zeros((6),dtype=np.double, order='C')
                 f = <double*> calloc(6,sizeof(double))
                 factor_n = Q_th[ii,jj]/r
-                factor_r = 1
+                # factor_r = 1
                 Q_o_sum = 0.0
                 for zz in range(len(A)):
                     dir = A[zz]

@@ -70,27 +70,21 @@ class CAenvironment:
             self.Q_d[1:-1, 1:-1] = 0
         else:
             self.Q_d = np.zeros((self.Ny, self.Nx), order='C', dtype=np.double)
-        if global_grid:
-            self.Q_a = self.Q_d.copy()  # Bathymetry legges til Q_a i self.setBathymetry(terrain)
+
         self.Q_o = np.zeros((self.Ny, self.Nx, 6), order='C', dtype=np.double)  # Density current outflow
         self.Q_v_is_zero_two_timesteps = np.zeros((self.Ny, self.Nx), dtype=np.intc,
                                                   order='C')  # update in I3 read in T2
 
-        # SET BATHYMETRY
-        self.terrain = parameters['terrain']
-        if global_grid:
-            try:
-                self.setBathymetry(parameters['terrain'], slope=parameters['slope'])
-            except KeyError:
-                print("Slope not defined! Using slope=0.08 if terrain is rupert or slope, ignore this if otherwise!")
-                self.setBathymetry(parameters['terrain'])
+
 
         # SET INITIAL CONDITIONS
-        # Initial sand cover
-        self.Q_cbj[1:-1, 1:-1, 0] = parameters['q_cbj[interior, 0]']  # 1
+        # Interior sand
+        for particle_type in range(self.Nj):
+            parameter_string2 = 'q_cbj[interior,' + str(particle_type) + ']'
+            self.Q_cbj[1:-1, 1:-1, particle_type] = parameters[parameter_string2]  # 1
         self.Q_d[1:-1, 1:-1] = parameters['q_d[interior]']  # 1.0
 
-        # Source area
+        # Source area (overwrite interior)
         # First try to convert from coordinates to indices
         try:
             N = parameters['n']
@@ -113,8 +107,17 @@ class CAenvironment:
                     self.Q_cbj[self.y, self.x, particle_type] = parameters[parameter_string2]  # 1
         except KeyError:
             print("Warning! No source area specified. Either specify a coordinate using (N,E) or (x,y).")
+        if global_grid: self.Q_a = self.Q_d.copy()  # Bathymetry legges til Q_a i self.setBathymetry(terrain)
+        # SET BATHYMETRY
+        self.terrain = parameters['terrain']
+        if global_grid:
+            try:
+                self.setBathymetry(parameters['terrain'], slope=parameters['slope'])
+            except KeyError:
+                print("Slope not defined! Using slope=0.08 if terrain is rupert or slope, ignore this if otherwise!")
+                self.setBathymetry(parameters['terrain'])
 
-
+        self.bathymetry = self.Q_a.copy()
         self.seaBedDiff = np.zeros((self.Ny - 2, self.Nx - 2, 6))
         self.calc_bathymetryDiff()
 
@@ -133,7 +136,7 @@ class CAenvironment:
                             break
                     print("Convergence achieved after {0} iterations. Continuing initialization.".format(jj))
             except KeyError:
-                pass
+                print("Toppling rule keyword not found! Skipping toppling before simulation.")
 
         # FOR DEBUGGING
         self.my_rank = 0
@@ -433,7 +436,8 @@ class CAenvironment:
     def calc_dt(self, global_grid=True):
         temp = self.calc_MaxRelaxationTime()
         try:
-            dt = np.min([np.amin(temp[np.isfinite(temp) & (~np.isnan(temp)) & (temp > 0)]), 0.02])  # Better stability
+            # dt = np.min([np.amin(temp[np.isfinite(temp) & (~np.isnan(temp)) & (temp > 0)]), 0.02])  # Better stability
+            dt = np.amin(temp[np.isfinite(temp) & (~np.isnan(temp)) & (temp > 0)])
         except:
             if global_grid is True:
                 dt = 0.01
@@ -468,9 +472,12 @@ class CAenvironment:
             self.sanityCheck()
             self.I_2()
             self.sanityCheck()
+            self.I_1() # Try to get nonzero speed in "new" cells
+            self.sanityCheck()
             self.I_3()
             self.sanityCheck()
             self.I_4()
+            self.sanityCheck()
         elif compare_cy_py is True:
             self.time_step_compare_cy_py(self.global_grid)
 
@@ -508,6 +515,8 @@ class CAenvironment:
 
         points = ax[1].pcolormesh(self.X[:, :, 0], self.X[:, :, 1],
                                np.log10(self.Q_th))
+        ax[1].contour(self.X[:, :, 0], self.X[:, :, 1],
+                               self.bathymetry, colors='black', alpha=0.4)
         ax[1].scatter(self.X[ind[0], ind[1], 0], self.X[ind[0], ind[1], 1], c='r')  # Targeting
         plt.colorbar(points, shrink=0.6, ax=ax[1])
         ax[1].set_title('Q_th')
@@ -519,6 +528,8 @@ class CAenvironment:
 
         points = ax[3].pcolormesh(self.X[1:-1, 1:-1, 0], self.X[1:-1, 1:-1, 1],
                                self.Q_d[1:-1, 1:-1])
+        ax[3].contour(self.X[:, :, 0], self.X[:, :, 1],
+                               self.bathymetry, colors='black', alpha=0.4)
         plt.colorbar(points, shrink=0.6, ax=ax[3])
         ax[3].set_title('Q_d[1:-1,1:-1]')
 
@@ -845,11 +856,28 @@ class CAenvironment:
                                  % (self.Nx, self.Ny, s1, i_values[-1], self.parameters['theta_r'])),
                     bbox_inches='tight', pad_inches=0)
 
-    def print_txt(self):  # TODO
+    def print_npy(self, i_values):
         """
-        This function prints substates to either txt or npy format
+        This function prints substates to .npy format
         """
+        s1 = str(self.terrain) if self.terrain is None else self.terrain
+        d = self.parameters['save_dir'] + 'npy_files/'
+        ma.ensure_dir(d)
+        d = d + ''.join('%03ix%03i_%s_%03i_thetar%0.0f_'
+                        % (self.Nx, self.Ny, s1, i_values[-1], self.parameters['theta_r']))
+
+        np.save(d + str('self.Q_th'),self.Q_th)
+        np.save(d + str('self.Q_v'),self.Q_v)
+        np.save(d + str('self.Q_cj'),self.Q_cj)
+        np.save(d + str('self.Q_cbj'),self.Q_cbj)
+        np.save(d + str('self.Q_d'),self.Q_d)
+        np.save(d + str('self.Q_o'),self.Q_o)
+        np.save(d + str('self.Q_a'),self.Q_a)
+
+    def load_npy(self, i_value):
         pass
+
+
 
     def plot_bathy(self):
         fig = plt.figure(figsize=(10, 6))
@@ -902,7 +930,7 @@ def set_which_plots(parameters):
                 plot_bool[0] = 1
             elif p == 'stability':
                 plot_bool[3] = 1
-            elif p == 'txt':
+            elif p == 'npy':
                 plot_bool[4] = 1
             elif p == 'bathymetry':
                 plot_bool[5] = 1
@@ -970,7 +998,7 @@ if __name__ == "__main__":
         for j in range(parameters['num_iterations']):
 
             CAenv.addSource(q_th0, q_v0, q_cj0)
-            # CAenv.add_source_constant(q_th0,q_v0, q_cj0)
+            # CAenv.add_source_constant()
             CAenv.CAtimeStep(compare_cy_py=False)
             CAenv.set_BC_absorb_bed()
             CAenv.set_BC_absorb_current()
@@ -982,7 +1010,7 @@ if __name__ == "__main__":
                 if plot_bool[0]: CAenv.plot1d(j)
                 if plot_bool[1]: CAenv.plot2d(j)
                 if plot_bool[2]: CAenv.plot3d(j)
-                if plot_bool[4]: CAenv.print_txt()
+        if plot_bool[4]: CAenv.print_npy(j_values)
         if plot_bool[3]:
             CAenv.plotStabilityCurves(j_values)
             CAenv.writeToTxt(j)
