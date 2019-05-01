@@ -433,7 +433,7 @@ class CAenvironment:
     def calc_dt(self, global_grid=True):
         temp = self.calc_MaxRelaxationTime()
         try:
-            dt = np.min([np.amin(temp[np.isfinite(temp) & (~np.isnan(temp)) & (temp > 0)]), 0.2])  # Better stability
+            dt = np.min([np.amin(temp[np.isfinite(temp) & (~np.isnan(temp)) & (temp > 0)]), 0.02])  # Better stability
         except:
             if global_grid is True:
                 dt = 0.01
@@ -491,40 +491,45 @@ class CAenvironment:
         plt.close("all")
 
     def plot2d(self, i):
-        fig = plt.figure(figsize=(10, 6))
-        ax = [fig.add_subplot(3, 2, i, aspect='equal') for i in range(1, 7)]
+        #fig = plt.figure(figsize=(14, 21))
+        #ax = [fig.add_subplot(3, 2, i, aspect='equal') for i in range(1, 7)]
+        fig, ax = plt.subplots(ncols=2, nrows=3, figsize=(21, 21), sharex=True, sharey=True, subplot_kw={"aspect": "equal"})
+        ax = ax.flatten()
         ind = np.unravel_index(np.argmax(self.Q_th, axis=None), self.Q_th.shape)
 
-        points = ax[0].scatter(self.X[:, :, 0].flatten(), self.X[:, :, 1].flatten(),
-                               c=self.Q_cj[:, :, 0].flatten())
+        #points = ax[0].scatter(self.X[:, :, 0].flatten(), self.X[:, :, 1].flatten(),
+         #                      c=self.Q_cj[:, :, 0].flatten())
+
+        points = ax[0].pcolormesh(self.X[:, :, 0], self.X[:, :, 1],
+                               self.Q_cj[:, :, 0])
 
         plt.colorbar(points, shrink=0.6, ax=ax[0])
         ax[0].set_title('Q_cj[:,:,0]. n = ' + str(i + 1))
 
-        points = ax[1].scatter(self.X[:, :, 0].flatten(), self.X[:, :, 1].flatten(),
-                               c=self.Q_th.flatten())
+        points = ax[1].pcolormesh(self.X[:, :, 0], self.X[:, :, 1],
+                               np.log10(self.Q_th))
         ax[1].scatter(self.X[ind[0], ind[1], 0], self.X[ind[0], ind[1], 1], c='r')  # Targeting
         plt.colorbar(points, shrink=0.6, ax=ax[1])
         ax[1].set_title('Q_th')
 
-        points = ax[2].scatter(self.X[1:-1, 1:-1, 0].flatten(), self.X[1:-1, 1:-1, 1].flatten(),
-                               c=self.Q_cbj[1:-1, 1:-1, 0].flatten())
+        points = ax[2].pcolormesh(self.X[1:-1, 1:-1, 0], self.X[1:-1, 1:-1, 1],
+                               self.Q_cbj[1:-1, 1:-1, 0])
         plt.colorbar(points, shrink=0.6, ax=ax[2])
         ax[2].set_title('Q_cbj[1:-1,1:-1,0]')
 
-        points = ax[3].scatter(self.X[1:-1, 1:-1, 0].flatten(), self.X[1:-1, 1:-1, 1].flatten(),
-                               c=self.Q_d[1:-1, 1:-1].flatten())
+        points = ax[3].pcolormesh(self.X[1:-1, 1:-1, 0], self.X[1:-1, 1:-1, 1],
+                               self.Q_d[1:-1, 1:-1])
         plt.colorbar(points, shrink=0.6, ax=ax[3])
         ax[3].set_title('Q_d[1:-1,1:-1]')
 
         try:
-            points = ax[4].scatter(self.X[1:-1, 1:-1, 0].flatten(), self.X[1:-1, 1:-1, 1].flatten(),
-                                   c=self.Q_cbj[1:-1, 1:-1, 1].flatten())
+            points = ax[4].pcolormesh(self.X[1:-1, 1:-1, 0], self.X[1:-1, 1:-1, 1],
+                                   self.Q_cbj[1:-1, 1:-1, 1])
             plt.colorbar(points, shrink=0.6, ax=ax[4])
             ax[4].set_title('Q_cbj[1:-1,1:-1,1]')
 
-            points = ax[5].scatter(self.X[1:-1, 1:-1, 0].flatten(), self.X[1:-1, 1:-1, 1].flatten(),
-                                   c=self.Q_cj[1:-1, 1:-1, 1].flatten())
+            points = ax[5].pcolormesh(self.X[1:-1, 1:-1, 0], self.X[1:-1, 1:-1, 1],
+                                   self.Q_cj[1:-1, 1:-1, 1])
             plt.colorbar(points, shrink=0.6, ax=ax[5])
             ax[5].set_title('Q_cj[1:-1,1:-1,1]')
         except:
@@ -621,7 +626,7 @@ class CAenvironment:
         ax = [fig.add_subplot(2, 2, i, aspect='equal') for i in range(1, 5)]
         ind = np.unravel_index(np.argmax(self.Q_th, axis=None), self.Q_th.shape)
 
-        points = ax[0].scatter(self.X[:, :, 0].flatten(), self.X[:, :, 1].flatten(), marker='h',
+        points = ax[0].scatter(self.X[:, :, 0], self.X[:, :, 1], marker='h',
                                c=self.Q_cj[:, :, 0].flatten())
 
         plt.colorbar(points, shrink=0.6, ax=ax[0])
@@ -982,3 +987,4 @@ if __name__ == "__main__":
             CAenv.plotStabilityCurves(j_values)
             CAenv.writeToTxt(j)
         print('{0} is complete. Time elapsed = {1}'.format(config, timer() - start))
+
