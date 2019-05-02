@@ -17,8 +17,9 @@ np.set_printoptions(suppress=True, precision=3)
 
 class CAenvironment:
 
-    def __init__(self, parameters, global_grid=True):
+    def __init__(self, parameters, global_grid=True, mpi=False):
         #     plt.ioff()
+        self.mpi = mpi
         self.global_grid = global_grid  # If False this environment describes a local CA (part of a grid)
         self.parameters = parameters
         self.Nx = parameters['nx']
@@ -75,6 +76,18 @@ class CAenvironment:
         self.Q_v_is_zero_two_timesteps = np.zeros((self.Ny, self.Nx), dtype=np.intc,
                                                   order='C')  # update in I3 read in T2
 
+        # SET BATHYMETRY
+        self.terrain = parameters['terrain']
+        if global_grid:
+            try:
+                self.Q_a += self.get_global_bathy(parameters['terrain'], slope=parameters['slope'])
+            except KeyError:
+                self.Q_a += self.get_global_bathy(parameters['terrain'])
+        else: # Bathymetry gitt i parameters['bathymetry']
+            try:
+                self.Q_a[1:-1,1:-1] += parameters['bathymetry']
+            except KeyError:
+                raise KeyError("No bathymetry specified in parameters['bathymetry']")
 
 
         # SET INITIAL CONDITIONS
@@ -89,13 +102,13 @@ class CAenvironment:
         try:
             N = parameters['n']
             E = parameters['e']
-            y= parameters['y'] = ma.find_index_nearest(self.X[:, 0, 1], N)
+            y = parameters['y'] = ma.find_index_nearest(self.X[:, 0, 1], N)
             parameters['x'] = ma.find_index_nearest(self.X[y, :, 0], E)
         except KeyError:  # No n or e specified
             pass
         try:
             if (parameters['x'] is not None) and (parameters['y'] is not None):
-                # if global_grid is True:
+                # By this time in mpi local grid, x y is None for relevant grids
                 self.y, self.x = np.meshgrid(parameters['y'], parameters['x'])
                 self.Q_th[self.y, self.x] = parameters['q_th[y,x]']  # 1.5
                 self.Q_v[self.y, self.x] = parameters['q_v[y,x]']  # 0.2
@@ -107,22 +120,25 @@ class CAenvironment:
                     self.Q_cbj[self.y, self.x, particle_type] = parameters[parameter_string2]  # 1
         except KeyError:
             print("Warning! No source area specified. Either specify a coordinate using (N,E) or (x,y).")
-        if global_grid: self.Q_a = self.Q_d.copy()  # Bathymetry legges til Q_a i self.setBathymetry(terrain)
-        # SET BATHYMETRY
-        self.terrain = parameters['terrain']
-        if global_grid:
-            try:
-                self.setBathymetry(parameters['terrain'], slope=parameters['slope'])
-            except KeyError:
-                print("Slope not defined! Using slope=0.08 if terrain is rupert or slope, ignore this if otherwise!")
-                self.setBathymetry(parameters['terrain'])
+        l1 = []
+        l2 = []
+        for particle_type in range(self.Nj):
+            parameter_string1 = 'q_cj[y,x,' + str(particle_type) + ']'
+            parameter_string2 = 'q_cbj[y,x,' + str(particle_type) + ']'
+            l1.append(parameters[parameter_string1])
+            l2.append(parameters[parameter_string2])
+        self.sourcevalues = {'Q_th': parameters['q_th[y,x]'],
+                             'Q_v': parameters['q_v[y,x]'],
+                             'Q_d': parameters['q_d[y,x]'],
+                             'Q_cj': l1, 'Q_cbj': l2}
+
 
         self.bathymetry = self.Q_a.copy()
-        self.seaBedDiff = np.zeros((self.Ny - 2, self.Nx - 2, 6))
-        self.calc_bathymetryDiff()
+        self.Q_a += self.Q_d.copy()  # Add sand layer to bed height
+        self.seaBedDiff = self.calc_bathymetryDiff()
 
         # Run toppling rule until convergence, before starting simulation
-        if global_grid is True:
+        if global_grid is True and mpi is False:
             try:
                 if parameters['converged_toppling'][0]:
                     tol = parameters['converged_toppling'][1]
@@ -139,7 +155,10 @@ class CAenvironment:
                 print("Toppling rule keyword not found! Skipping toppling before simulation.")
 
         # FOR DEBUGGING
-        self.my_rank = 0
+        if global_grid == 0:
+            self.my_rank = parameters['rank']
+        else:
+            self.my_rank = -1
         self.unphysical_substate = {'Q_th': 0, 'Q_v': 0, 'Q_cj': 0, 'Q_cbj': 0, 'Q_d': 0, 'Q_o': 0}
         self.Erosionrate_sample = []
         self.Depositionrate_sample = []
@@ -348,7 +367,8 @@ class CAenvironment:
             print(np.where(np.sum(self.Q_cbj, 2) != 1))
             raise Exception("should always be 1 with nj=1!")
 
-    def setBathymetry(self, terrain, slope=0.08):
+    def get_global_bathy(self, terrain, slope=0.08):
+        """ Returns global bathymetry """
         if terrain is not None:
             x = np.linspace(0, 100, self.Nx)
             y = np.linspace(0, 100, self.Ny)
@@ -357,20 +377,22 @@ class CAenvironment:
                 if terrain == 'river':
                     temp = -2 * X[1, :] + 5 * np.abs(X[0, :] - 50 + 10 * np.sin(X[1, :] / 10))
                     #                 temp = 2*self.X[:,:,1] + 5*np.abs(self.X[:,:,0] + 10*np.sin(self.X[:,:,1]/10))
-                    self.Q_a += temp  # BRUK MED RIVER
+                    return temp  # BRUK MED RIVER
                 elif terrain == 'river_shallow':
                     temp = -1 * X[1, :] + 1 * np.abs(X[0, :] - 50 + 5 * np.sin(X[1, :] / 10))
                     #                 temp = 2*self.X[:,:,1] + 5*np.abs(self.X[:,:,0] + 10*np.sin(self.X[:,:,1]/10))
-                    self.Q_a += temp  # BRUK MED RIVER
+                    return temp  # BRUK MED RIVER
                 elif terrain == 'pit':
                     temp = np.sqrt((X[0, :] - 50) * (X[0, :] - 50) + (X[1, :] - 50) * (X[1, :] - 50))
-                    self.Q_a += 10 * temp
+                    return 10 * temp
                 elif terrain == 'rupert':
+                    print("Slope not defined! Using slope=0.08")
                     temp, junk = ma.generate_rupert_inlet_bathymetry(self.reposeAngle, self.dx, self.Ny, self.Nx)
                     temp = ma.gen_sloped_plane(self.Ny, self.Nx, self.dx, -slope, mat=temp.transpose())
-                    self.Q_a += temp
+                    return temp
                 elif terrain == 'sloped_plane':
-                    self.Q_a += ma.gen_sloped_plane(self.Ny, self.Nx, self.dx, slope)
+                    print("Slope not defined! Using slope=0.08")
+                    return ma.gen_sloped_plane(self.Ny, self.Nx, self.dx, slope)
                 elif terrain == 'ranfjorden':
                     #### Redefine X using x0 and y0 ######
                     Ny = self.Ny
@@ -390,8 +412,8 @@ class CAenvironment:
                         # Create spline interpolation object
                         b = RectBivariateSpline(d.yc, d.xc, d.depth)
                         # evaluate spline at positions of hexgrid cells
-                        temp = b(self.X[:, :, 1], self.X[:, :, 0], grid=False)
-                        self.Q_a -= temp # Subtract beacuse temp is 'depth'
+                        temp = -1*b(self.X[:, :, 1], self.X[:, :, 0], grid=False)
+                        return temp # Subtract beacuse temp is 'depth'
                 else:
                     terrain_path = './Bathymetry/' + terrain + '.npy'
                     try:
@@ -399,21 +421,25 @@ class CAenvironment:
                     except FileNotFoundError:
                         raise FileNotFoundError('Could not find bathymetry with name {0}'.format(terrain))
                     assert temp.shape == self.Q_a.shape
-                    self.Q_a += temp
+                    return temp
             elif type(terrain) == np.ndarray:
                 assert self.Q_a.shape == terrain.shape
-                self.Q_a += terrain
+                return terrain
+        else:
+            return np.zeros((self.Ny, self.Nx))
 
     def calc_bathymetryDiff(self):
+        seaBedDiff = np.zeros((self.Ny - 2, self.Nx - 2, 6))
         with np.errstate(invalid='ignore'):
             temp = self.Q_a - self.Q_d
-        self.seaBedDiff[:, :, 0] = temp[1:-1, 1:-1] - temp[0:self.Ny - 2, 1:self.Nx - 1]
-        self.seaBedDiff[:, :, 1] = temp[1:-1, 1:-1] - temp[0:self.Ny - 2, 2:self.Nx]
-        self.seaBedDiff[:, :, 2] = temp[1:-1, 1:-1] - temp[1:self.Ny - 1, 2:self.Nx]
-        self.seaBedDiff[:, :, 3] = temp[1:-1, 1:-1] - temp[2:self.Ny, 1:self.Nx - 1]
-        self.seaBedDiff[:, :, 4] = temp[1:-1, 1:-1] - temp[2:self.Ny, 0:self.Nx - 2]
-        self.seaBedDiff[:, :, 5] = temp[1:-1, 1:-1] - temp[1:self.Ny - 1, 0:self.Nx - 2]
-        self.seaBedDiff[np.isnan(self.seaBedDiff)] = 0
+        seaBedDiff[:, :, 0] = temp[1:-1, 1:-1] - temp[0:self.Ny - 2, 1:self.Nx - 1]
+        seaBedDiff[:, :, 1] = temp[1:-1, 1:-1] - temp[0:self.Ny - 2, 2:self.Nx]
+        seaBedDiff[:, :, 2] = temp[1:-1, 1:-1] - temp[1:self.Ny - 1, 2:self.Nx]
+        seaBedDiff[:, :, 3] = temp[1:-1, 1:-1] - temp[2:self.Ny, 1:self.Nx - 1]
+        seaBedDiff[:, :, 4] = temp[1:-1, 1:-1] - temp[2:self.Ny, 0:self.Nx - 2]
+        seaBedDiff[:, :, 5] = temp[1:-1, 1:-1] - temp[1:self.Ny - 1, 0:self.Nx - 2]
+        seaBedDiff[np.isnan(seaBedDiff)] = 0
+        return seaBedDiff
 
     def calc_BFroudeNo(self, g_prime):  # out: Bulk Froude No matrix
         U = self.Q_v
@@ -440,7 +466,7 @@ class CAenvironment:
             dt = np.amin(temp[np.isfinite(temp) & (~np.isnan(temp)) & (temp > 0)])
         except:
             if global_grid is True:
-                dt = 0.01
+                dt = 0.01 # TODO, burde kanskje la sim slutte hvis dette skjer
             else:
                 dt = 9999999  # Set a large number so we can use MPI.Reduce MIN.
         return dt
@@ -732,7 +758,10 @@ class CAenvironment:
         self.ch_bot_sediment = [self.Q_d[bottom_indices[i]] for i in range(len(bottom_indices))]
         self.ch_bot_outflow = [sum(self.Q_o[self.bot_indices[i]]) for i in range(len(self.bot_indices))]
 
-    def addSource(self, q_th0, q_v0, q_cj0):
+    def addSource(self):
+        q_th0 = self.sourcevalues['Q_th']
+        q_v0 = self.sourcevalues['Q_v']
+        q_cj0: list = self.sourcevalues['Q_cj']
         # grid.Q_v[y, x] += 0.2
         # grid.Q_cj[y, x, 0] += 0.003
         # grid.Q_th[y, x] += 1.5
@@ -743,7 +772,7 @@ class CAenvironment:
                 self.Q_th[self.y, self.x] += q_th0 * self.dt
                 for particle_type in range(self.Nj):
                     self.Q_cj[self.y, self.x, particle_type] = (self.Q_cj[self.y, self.x, particle_type] * self.Q_th[
-                        self.y, self.x] + q_cj0 * q_th0 * self.dt) / (
+                        self.y, self.x] + q_cj0[particle_type] * q_th0 * self.dt) / (
                                                                        q_th0 * self.dt + self.Q_th[self.y, self.x])
         else:
             pass
@@ -984,9 +1013,9 @@ if __name__ == "__main__":
         save_dir = './Data/' + config + '/'
         ma.ensure_dir(save_dir)
         parameters['save_dir'] = save_dir
-        q_th0 = parameters['q_th[y,x]']
-        q_cj0 = parameters['q_cj[y,x,0]']
-        q_v0 = parameters['q_v[y,x]']
+        # q_th0 = parameters['q_th[y,x]']
+        # q_cj0 = parameters['q_cj[y,x,0]']
+        # q_v0 = parameters['q_v[y,x]']
         plot_bool = set_which_plots(parameters)
 
         sample_rate = parameters['sample_rate']
@@ -997,7 +1026,7 @@ if __name__ == "__main__":
         j = 0
         for j in range(parameters['num_iterations']):
 
-            CAenv.addSource(q_th0, q_v0, q_cj0)
+            CAenv.addSource()
             # CAenv.add_source_constant()
             CAenv.CAtimeStep(compare_cy_py=False)
             CAenv.set_BC_absorb_bed()
