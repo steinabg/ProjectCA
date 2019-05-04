@@ -32,22 +32,23 @@ class CAenvironment:
         self.a = parameters['a']  # Empirical coefficient (used in I_3)
         self.rho_a = parameters['rho_a']  # ambient density
         self.rho_j = parameters['rho_j']  # List of current sediment densities
-        self.D_sj = parameters['d_sj']  # List of sediment-particle diameters
+        self.D_sj = parameters['d_sj']  # List of sediment-particle diameters [mm?]
         self.Nj = parameters['nj']  # Number of sediment types
         self.c_D = parameters['c_d']  # Bed drag coefficient (table 3)
         self.nu = parameters['nu']  # Kinematic viscosity of water at 5 degrees celcius
         self.porosity = parameters['porosity']
         self.p_f = parameters['p_f']  # Height threshold friction angle
         self.p_adh = parameters['p_adh']
+        if mpi is False: self.save_dt = []
 
         s = parameters['sphere_settling_velocity']
         if type(s) != str:
             self.v_sj = s
         elif s.lower() == 'salles' or s.lower() == 'vanrijn':
-            self.v_sj = ma.calc_settling_speed(self.D_sj, self.rho_a, self.rho_j,
+            self.v_sj = ma.calc_settling_speed(self.D_sj/1000, self.rho_a, self.rho_j,
                                                self.g, self.nu)
         elif s.lower() == 'soulsby':
-            self.v_sj = ma.calc_settling_speed(self.D_sj, self.rho_a, self.rho_j,
+            self.v_sj = ma.calc_settling_speed(self.D_sj/1000, self.rho_a, self.rho_j,
                                                self.g, self.nu, method='soulsby')
 
 
@@ -354,7 +355,11 @@ class CAenvironment:
             raise Exception('unphysical_substate[Q_cj]')
         if (np.any(self.Q_cbj > 1)) | (np.any(self.Q_cbj < 0)):
             self.unphysical_substate['Q_cbj'] = 1
-            raise Exception('unphysical_substate[Q_cbj]')
+            ii, jj, kk = np.where(np.logical_or(self.Q_cbj > 1,self.Q_cbj < 0))
+            s = "unphysical_substate[Q_cbj]\n"
+            if self.mpi: s = s + ''.join("rank = ".format(self.my_rank))
+            s = self.create_substate_string(s, [ii,jj,kk])
+            raise Exception(s)
         if np.any(self.Q_d < 0):
             self.unphysical_substate['Q_d'] = 1
             raise Exception('unphysical_substate[Q_d]')
@@ -366,6 +371,26 @@ class CAenvironment:
         if (np.any(t1) != 1) and np.any(t1) != 0:
             print(np.where(np.sum(self.Q_cbj, 2) != 1))
             raise Exception("should always be 1 with nj=1!")
+
+    def create_substate_string(self, string, index):
+        """ This function is used to print errors containing\
+            information about unphysical substates."""
+        ii = index[0]
+        jj = index[1]
+        kk = index[2]
+        string = string + ''.join("q_cj[{0},{1},{2}] = {3}\n".format(
+                ii[x], jj[x], kk[x], self.Q_cj[ii[x], jj[x],kk[x]]) for x in range(len(ii)))
+        string = string + ''.join("q_cbj[{0},{1},{2}] = {3}\n".format(
+            ii[x], jj[x], kk[x], self.Q_cbj[ii[x], jj[x], kk[x]]) for x in range(len(ii)))
+        string = string + ''.join("q_th[{0},{1}] = {2}\n".format(
+            ii[x], jj[x], self.Q_th[ii[x], jj[x]]) for x in range(len(ii)))
+        string = string + ''.join("q_d[{0},{1}] = {2}\n".format(
+            ii[x], jj[x], self.Q_d[ii[x], jj[x]]) for x in range(len(ii)))
+        string = string + ''.join("q_v[{0},{1}] = {2}\n".format(
+            ii[x], jj[x], self.Q_v[ii[x], jj[x]]) for x in range(len(ii)))
+
+
+        return string
 
     def get_global_bathy(self, terrain, slope=0.08):
         """ Returns global bathymetry """
@@ -469,6 +494,7 @@ class CAenvironment:
                 dt = 0.01 # TODO, burde kanskje la sim slutte hvis dette skjer
             else:
                 dt = 9999999  # Set a large number so we can use MPI.Reduce MIN.
+        self.save_dt.append(dt)
         return dt
 
     ###### END OF METHODS FROM HEXGRID ##########
@@ -921,7 +947,20 @@ class CAenvironment:
                     bbox_inches='tight', pad_inches=0, dpi=240)
         plt.close('all')
 
-
+    def print_log(self, loop: str):
+        """ This function prints the variables used to a timestamped file.\
+            "loop" is a string that will be added to the log file."""
+        from time import localtime, strftime
+        ts = localtime()
+        s = (strftime("%Y-%m-%d %H:%M:%S", ts))
+        d = self.parameters['save_dir'] + 'log/'
+        ma.ensure_dir(d)
+        d = d+''.join(s)
+        d = d + ''.join('.txt')
+        with open(d, 'w') as f:
+            f.write(loop + "\n")
+            ma.dump(self.parameters, output=f)
+        f.close()
 
 def read_which_configs():
     try:
@@ -1043,5 +1082,9 @@ if __name__ == "__main__":
         if plot_bool[3]:
             CAenv.plotStabilityCurves(j_values)
             CAenv.writeToTxt(j)
-        print('{0} is complete. Time elapsed = {1}'.format(config, timer() - start))
+        wtime = timer() - start
+        stime = sum(CAenv.save_dt)
+        CAenv.print_log("Wall time used = {0}, simulated time = {1}".format(wtime,stime))
+        print('{0} is complete. Wall time elapsed = {1}\n'
+              '{2} seconds simulation time.'.format(config, wtime, stime))
 

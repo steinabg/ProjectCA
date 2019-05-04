@@ -5,6 +5,7 @@ import CAenvironment as CAenv
 import scipy.io
 import mathfunk as ma
 import matplotlib.pyplot as plt
+from timeit import default_timer as timer
 
 
 class mpi_environment:
@@ -23,6 +24,7 @@ class mpi_environment:
         self.SW = 7
 
         # Load CA parameters from file
+        self.config = config
         self.g_params = CAenv.import_parameters(config)
 
         # N E is "converted" to x y during initialization of result_grid !
@@ -85,8 +87,11 @@ class mpi_environment:
 
         self.set_local_grid_source_xy()  # Here local X Y is added to l_params
         # Delete coordinates, so x and y are not overwritten when initilizing local grid
-        del self.l_params['n']
-        del self.l_params['e']
+        try:
+            del self.l_params['n']
+            del self.l_params['e']
+        except KeyError:
+            pass
         # print("rank {0}, l_params[yx] = {1} ".format(self.my_rank, [self.l_params['y'], self.l_params['x']]))
         self.local_bathy = self.generate_p_local_hex_bathymetry()
         self.l_params['bathymetry'] = self.local_bathy.copy()
@@ -112,7 +117,13 @@ class mpi_environment:
             ma.ensure_dir(self.save_path_png)
             np.save(self.save_path_txt+'X000', self.result_grid.X[:, :, 0])
             np.save(self.save_path_txt+'X001', self.result_grid.X[:, :, 1])
-            self.save_dt = []
+            self.save_dt = [] # Save time steps
+            self.mass = [] # Save mass of TC
+            self.massBed = [] # mass of sea bed
+            self.density = [] # Max density of TC
+            self.beddensity = [] # Max density of bed
+            self.head_velocity = []
+            self.j_values = [] # Save iteration number at samples
         self.bottom_indices = []
         for index in self.result_grid.bot_indices:
             x, y = global_coords_to_local_coords(index[0], index[1], self.my_mpi_row, self.my_mpi_col,
@@ -124,6 +135,7 @@ class mpi_environment:
         self.sample_rate = self.l_params['sample_rate']
         self.i_sample_values = []
         self.plot_bool = CAenv.set_which_plots(self.l_params)
+
         self.result_grid.parameters['save_dir'] = self.save_path_png
 
     def define_mpi_diagonals(self):
@@ -617,10 +629,8 @@ class mpi_environment:
 
     def run(self, compare = False):
         """ Called by user in separate script. Starts simulation. """
-        q_th0 = self.l_params['q_th[y,x]']
-        q_cj0 = self.l_params['q_cj[y,x,0]']
-        q_v0 = self.l_params['q_v[y,x]']
         comm = self.comm
+        start = timer()
         for num_iterations in range(self.ITERATIONS):
             # Add source
             self.p_local_hexgrid.addSource()
@@ -649,22 +659,30 @@ class mpi_environment:
                 self.save_dt.append(p_global_dt)
 
             # Iterate CA
-            self.iterateCA()
-            # if compare: self.compare_steps(num_iterations, p_global_dt)
+
+            if compare:
+                self.compare_steps(num_iterations, p_global_dt)
+            else:
+                self.iterateCA()
             # if compare:
             #     self.result_grid.dt = self.result_grid.calc_dt()
             #     self.compare_mpi_singlecore(num_iterations, p_global_dt, self.result_grid.CAtimeStep)
             if ((num_iterations + 1) % self.sample_rate == 0) and num_iterations > 0:
                 self.sample(num_iterations)
+                if self.my_rank == 0: self.j_values.append(num_iterations + 1)
+
         self.print_figures()
+        wtime = timer() - start
+        if self.my_rank == 0:
+            stime = sum(self.save_dt)
+            self.result_grid.print_log("Wall time used = {0}, simulated time = {1}".format(wtime,stime))
+            print('{0} is complete. Wall time elapsed = {1}\n'
+                  '{2} seconds simulation time.'.format(self.config, wtime, stime))
 
     def compare_steps(self, j, p_global_dt):
         """ This function compares the mpi result with the\
          single core result after each component of the transition fuction."""
-        q_th0 = self.l_params['q_th[y,x]']
-        q_cj0 = self.l_params['q_cj[y,x,0]']
-        q_v0 = self.l_params['q_v[y,x]']
-        self.result_grid.addSource(q_th0, q_v0, q_cj0)
+        self.result_grid.addSource()
         self.result_grid.dt = self.result_grid.calc_dt()
         if self.my_rank == 0 and p_global_dt != self.result_grid.dt:
             print("rank = {3} image_dt = {0}, result_grid.dt = {1}. equal = {2}".format(p_global_dt, self.result_grid.dt,
@@ -673,27 +691,27 @@ class mpi_environment:
         self.exchange_borders_cube(self.p_local_hexgrid.Q_cj, self.l_params['nj'])
         self.exchange_borders_matrix(self.p_local_hexgrid.Q_th)
         self.set_local_grid_bc()
-        self.compare_mpi_singlecore(j, p_global_dt, self.result_grid.T_1)
+        self.compare_mpi_singlecore(j, self.result_grid.T_1)
         self.p_local_hexgrid.T_2()
         self.exchange_borders_matrix(self.p_local_hexgrid.Q_d)
         self.exchange_borders_matrix(self.p_local_hexgrid.Q_a)
         self.exchange_borders_cube(self.p_local_hexgrid.Q_cbj, self.l_params['nj'])
         self.exchange_borders_cube(self.p_local_hexgrid.Q_cj, self.l_params['nj'])
         self.set_local_grid_bc()
-        self.compare_mpi_singlecore(j, p_global_dt, self.result_grid.T_2)
+        self.compare_mpi_singlecore(j, self.result_grid.T_2)
         self.p_local_hexgrid.I_1()
         self.exchange_borders_cube(self.p_local_hexgrid.Q_o, 6)
         self.set_local_grid_bc()
-        self.compare_mpi_singlecore(j, p_global_dt, self.result_grid.I_1)
+        self.compare_mpi_singlecore(j, self.result_grid.I_1)
         self.p_local_hexgrid.I_2()
         self.exchange_borders_matrix(self.p_local_hexgrid.Q_th)
         self.exchange_borders_cube(self.p_local_hexgrid.Q_cj, self.l_params['nj'])
         self.set_local_grid_bc()
-        self.compare_mpi_singlecore(j, p_global_dt, self.result_grid.I_2)
+        self.compare_mpi_singlecore(j, self.result_grid.I_2)
         self.p_local_hexgrid.I_3()
         self.exchange_borders_matrix(self.p_local_hexgrid.Q_v)
         self.set_local_grid_bc()
-        self.compare_mpi_singlecore(j, p_global_dt, self.result_grid.I_3)
+        self.compare_mpi_singlecore(j, self.result_grid.I_3)
         self.p_local_hexgrid.I_4()
         # if my_rank != 0:
         #     print("0 my rank = ", my_rank, "\nnonzero Qd=\n", np.where(np.logical_and(p_local_hexgrid.Q_d > 1, np.isfinite(p_local_hexgrid.Q_d))))
@@ -705,11 +723,11 @@ class mpi_environment:
         self.exchange_borders_matrix(self.p_local_hexgrid.Q_a)
         self.exchange_borders_cube(self.p_local_hexgrid.Q_cbj, self.l_params['nj'])
         self.set_local_grid_bc()
-        self.compare_mpi_singlecore(j, p_global_dt, self.result_grid.I_4)
+        self.compare_mpi_singlecore(j, self.result_grid.I_4)
 
 
 
-    def compare_mpi_singlecore(self, j, p_global_dt, CAtimeStep):
+    def compare_mpi_singlecore(self, j, function):
         """ This function compares an mpi calculated substate with an SC\
             calculated substate. """
 
@@ -717,7 +735,7 @@ class mpi_environment:
         if self.my_rank == 0:
             # Check if the mpi and nonmpi grids are identical
 
-            CAtimeStep()
+            function()
             # print("image = \n", image_Q_th)
             # print("\nresult_grid = \n",  self.result_grid.Q_th)
             # result_grid.grid.Q_th[1,1] += 1 #induce intentional error
@@ -752,43 +770,52 @@ class mpi_environment:
         IMAGE_Q_o = self.gather_cube(self.p_local_hexgrid.Q_o, 6)
 
         if self.my_rank == 0:
-            ch_bot_thickness = [IMAGE_Q_th[bottom_indices[i]] for i in
-                                range(len(bottom_indices))]
-            ch_bot_speed = [IMAGE_Q_v[bottom_indices[i]] for i in range(len(bottom_indices))]
-            ch_bot_thickness_cons = []
-            ch_bot_sediment_cons = []
-            for jj in range(self.l_params['nj']):
-                ch_bot_thickness_cons.append(
-                    [IMAGE_Q_cj[bottom_indices[i] + (jj,)] for i in range(len(bottom_indices))])
-                ch_bot_sediment_cons.append(
-                    [IMAGE_Q_cbj[bottom_indices[i] + (jj,)] for i in range(len(bottom_indices))])
-            # ch_bot_thickness_cons0 = [IMAGE_Q_cj[bottom_indices[i] + (0,)] for i in range(len(bottom_indices))]
-            # ch_bot_thickness_cons1 = [IMAGE_Q_cj[bottom_indices[i] + (1,)] for i in range(len(bottom_indices))]
-            ch_bot_sediment = [IMAGE_Q_d[bottom_indices[i]] for i in range(len(bottom_indices))]
-            # ch_bot_sediment_cons0 = [IMAGE_Q_cbj[bottom_indices[i] + (0,)] for i in range(len(bottom_indices))]
-            # ch_bot_sediment_cons1 = [IMAGE_Q_cbj[bottom_indices[i] + (1,)] for i in range(len(bottom_indices))]
-            ch_bot_outflow = [sum(IMAGE_Q_o[bottom_indices[i]]) for i in
-                              range(len(bottom_indices))]
+            if self.plot_bool[0]: # 1d plot
+                ch_bot_thickness = [IMAGE_Q_th[bottom_indices[i]] for i in
+                                    range(len(bottom_indices))]
+                ch_bot_speed = [IMAGE_Q_v[bottom_indices[i]] for i in range(len(bottom_indices))]
+                ch_bot_thickness_cons = []
+                ch_bot_sediment_cons = []
+                for jj in range(self.l_params['nj']):
+                    ch_bot_thickness_cons.append(
+                        [IMAGE_Q_cj[bottom_indices[i] + (jj,)] for i in range(len(bottom_indices))])
+                    ch_bot_sediment_cons.append(
+                        [IMAGE_Q_cbj[bottom_indices[i] + (jj,)] for i in range(len(bottom_indices))])
+                ch_bot_sediment = [IMAGE_Q_d[bottom_indices[i]] for i in range(len(bottom_indices))]
+                ch_bot_outflow = [sum(IMAGE_Q_o[bottom_indices[i]]) for i in
+                                  range(len(bottom_indices))]
 
-            np.save(self.save_path_txt + 'Q_th_{0}'.format(num_iterations + 1), IMAGE_Q_th)
-            np.save(self.save_path_txt + 'Q_cbj_{0}'.format(num_iterations + 1), IMAGE_Q_cbj)
-            np.save(self.save_path_txt + 'Q_cj_{0}'.format(num_iterations + 1), IMAGE_Q_cj)
-            np.save(self.save_path_txt + 'Q_d_{0}'.format(num_iterations + 1), IMAGE_Q_d)
-            np.save(self.save_path_txt + 'ch_bot_outflow_{0}'.format(num_iterations + 1), ch_bot_outflow)
-            np.save(self.save_path_txt + 'ch_bot_speed_{0}'.format(num_iterations + 1), ch_bot_speed)
-            np.save(self.save_path_txt + 'ch_bot_thickness_{0}'.format(num_iterations + 1), ch_bot_thickness)
-            np.save(self.save_path_txt + 'ch_bot_sediment_{0}'.format(num_iterations + 1), ch_bot_sediment)
-            for jj in range(self.l_params['nj']):
-                np.save(self.save_path_txt + 'ch_bot_sediment_cons{0}_{1}'.format(jj, num_iterations + 1),
-                        ch_bot_sediment_cons[jj])
-                np.save(self.save_path_txt + 'ch_bot_thickness_cons{0}_{1}'.format(jj, num_iterations + 1),
-                        ch_bot_thickness_cons[jj])
-            # np.save(os.path.join(save_path_txt, 'ch_bot_sediment_cons0_{0}'.format(num_iterations + 1)), ch_bot_sediment_cons0)
-            # np.save(os.path.join(save_path_txt, 'ch_bot_sediment_cons1_{0}'.format(num_iterations + 1)), ch_bot_sediment_cons1)
-            # np.save(os.path.join(save_path_txt, 'ch_bot_thickness_cons0_{0}'.format(num_iterations + 1)), ch_bot_thickness_cons0)
-            # np.save(os.path.join(save_path_txt, 'ch_bot_thickness_cons1_{0}'.format(num_iterations + 1)), ch_bot_thickness_cons1)
+                np.save(self.save_path_txt + 'ch_bot_outflow_{0}'.format(num_iterations + 1), ch_bot_outflow)
+                np.save(self.save_path_txt + 'ch_bot_speed_{0}'.format(num_iterations + 1), ch_bot_speed)
+                np.save(self.save_path_txt + 'ch_bot_thickness_{0}'.format(num_iterations + 1), ch_bot_thickness)
+                np.save(self.save_path_txt + 'ch_bot_sediment_{0}'.format(num_iterations + 1), ch_bot_sediment)
+                for jj in range(self.l_params['nj']):
+                    np.save(self.save_path_txt + 'ch_bot_sediment_cons{0}_{1}'.format(jj, num_iterations + 1),
+                            ch_bot_sediment_cons[jj])
+                    np.save(self.save_path_txt + 'ch_bot_thickness_cons{0}_{1}'.format(jj, num_iterations + 1),
+                            ch_bot_thickness_cons[jj])
+            if self.plot_bool[1]:  # 2d plot
+                np.save(self.save_path_txt + 'Q_th_{0}'.format(num_iterations + 1), IMAGE_Q_th)
+                np.save(self.save_path_txt + 'Q_cbj_{0}'.format(num_iterations + 1), IMAGE_Q_cbj)
+                np.save(self.save_path_txt + 'Q_cj_{0}'.format(num_iterations + 1), IMAGE_Q_cj)
+                np.save(self.save_path_txt + 'Q_d_{0}'.format(num_iterations + 1), IMAGE_Q_d)
+            if self.plot_bool[3]:  # stability curves
+                self.mass.append(IMAGE_Q_th[:, :, None] * IMAGE_Q_cj)
+                self.massBed.append(np.sum(IMAGE_Q_d[1:-1, 1:-1].flatten(), axis=None))
+                self.density.append(np.amax(IMAGE_Q_cj[:, :, 0].flatten()))
+                self.beddensity.append(np.amax(IMAGE_Q_cbj[:, :, 0]))
+
 
     def print_figures(self):
+        # Stability curves
+        if self.my_rank == 0 and self.plot_bool[3]:  # stability curves:
+            g = self.result_grid
+            g.density = self.density
+            g.time = self.save_dt
+            g.mass = self.mass
+            g.plotStabilityCurves(self.j_values)
+
+
         num_figs = self.ITERATIONS // self.sample_rate
         figs_per_proc = num_figs // self.num_procs
         X0 = np.load(self.save_path_txt + 'X000.npy')
@@ -802,15 +829,17 @@ class mpi_environment:
         g = self.result_grid
         for i in range(self.my_rank * figs_per_proc, upper_lim):
             # print("i = ", i, " len(i_sample_) = ", len(i_sample_values))
-            IMAGE_Q_th, IMAGE_Q_cbj, IMAGE_Q_cj, IMAGE_Q_d, \
-            ch_bot_outflow, ch_bot_thickness, ch_bot_speed, \
-            ch_bot_sediment, ch_bot_sediment_cons, ch_bot_thickness_cons = \
-                self.load_txt_files(self.i_sample_values[i], self.l_params)
+            r = self.load_txt_files(self.i_sample_values[i], self.l_params)
+            IMAGE_Q_th, IMAGE_Q_cbj, IMAGE_Q_cj, IMAGE_Q_d = r[0:4]
             g.Q_th = IMAGE_Q_th
             g.Q_cbj = IMAGE_Q_cbj
             g.Q_cj = IMAGE_Q_cj
             g.Q_d = IMAGE_Q_d
             if self.plot_bool[1]: g.plot2d(self.i_sample_values[i])
+            if self.plot_bool[0]:
+                ch_bot_outflow, ch_bot_thickness, ch_bot_speed, \
+                ch_bot_sediment, ch_bot_sediment_cons, ch_bot_thickness_cons = r[4:-1]
+                # TODO plot
 
 
             # print_substate(self.l_params['ny'], self.l_params['nx'], self.i_sample_values[i],
@@ -825,24 +854,25 @@ class mpi_environment:
         IMAGE_Q_cbj = np.load((save_path_txt+ 'Q_cbj_{0}.npy'.format(num_iterations + 1)))
         IMAGE_Q_cj = np.load((save_path_txt+ 'Q_cj_{0}.npy'.format(num_iterations + 1)))
         IMAGE_Q_d = np.load((save_path_txt+ 'Q_d_{0}.npy'.format(num_iterations + 1)))
-
-        ch_bot_thickness = np.load((save_path_txt+ 'ch_bot_thickness_{0}.npy'.format(num_iterations + 1)))
-        ch_bot_outflow = np.load((save_path_txt+ 'ch_bot_outflow_{0}.npy'.format(num_iterations + 1)))
-        ch_bot_speed = np.load((save_path_txt+ 'ch_bot_speed_{0}.npy'.format(num_iterations + 1)))
-        ch_bot_sediment = np.load((save_path_txt+ 'ch_bot_sediment_{0}.npy'.format(num_iterations + 1)))
-        ch_bot_sediment_cons = []
-        ch_bot_thickness_cons = []
-        for jj in range(parameters['nj']):
-            ch_bot_sediment_cons.append(np.load(
-                (save_path_txt+ 'ch_bot_sediment_cons{0}_{1}.npy'.format(jj, num_iterations + 1))))
-            ch_bot_thickness_cons.append(np.load(
-                (save_path_txt+ 'ch_bot_thickness_cons{0}_{1}.npy'.format(jj, num_iterations + 1))))
-        # ch_bot_sediment_cons0     = np.load((save_path_txt,     'ch_bot_sediment_cons0_{0}.npy'.format(num_iterations + 1)))
-        # ch_bot_sediment_cons1     = np.load((save_path_txt,     'ch_bot_sediment_cons1_{0}.npy'.format(num_iterations + 1)))
-        # ch_bot_thickness_cons0     = np.load((save_path_txt,     'ch_bot_thickness_cons0_{0}.npy'.format(num_iterations + 1)))
-        # ch_bot_thickness_cons1     = np.load((save_path_txt,     'ch_bot_thickness_cons1_{0}.npy'.format(num_iterations + 1)))
-        return IMAGE_Q_th, IMAGE_Q_cbj, IMAGE_Q_cj, IMAGE_Q_d, ch_bot_outflow, ch_bot_thickness, \
-               ch_bot_speed, ch_bot_sediment, ch_bot_sediment_cons, ch_bot_thickness_cons
+        r = [IMAGE_Q_th, IMAGE_Q_cbj, IMAGE_Q_cj, IMAGE_Q_d]
+        if self.plot_bool[3]:
+            ch_bot_thickness = np.load((save_path_txt+ 'ch_bot_thickness_{0}.npy'.format(num_iterations + 1)))
+            ch_bot_outflow = np.load((save_path_txt+ 'ch_bot_outflow_{0}.npy'.format(num_iterations + 1)))
+            ch_bot_speed = np.load((save_path_txt+ 'ch_bot_speed_{0}.npy'.format(num_iterations + 1)))
+            ch_bot_sediment = np.load((save_path_txt+ 'ch_bot_sediment_{0}.npy'.format(num_iterations + 1)))
+            ch_bot_sediment_cons = []
+            ch_bot_thickness_cons = []
+            for jj in range(parameters['nj']):
+                ch_bot_sediment_cons.append(np.load(
+                    (save_path_txt+ 'ch_bot_sediment_cons{0}_{1}.npy'.format(jj, num_iterations + 1))))
+                ch_bot_thickness_cons.append(np.load(
+                    (save_path_txt+ 'ch_bot_thickness_cons{0}_{1}.npy'.format(jj, num_iterations + 1))))
+            r.extend([ch_bot_outflow, ch_bot_thickness, ch_bot_speed, ch_bot_sediment, ch_bot_sediment_cons, ch_bot_thickness_cons])
+            # ch_bot_sediment_cons0     = np.load((save_path_txt,     'ch_bot_sediment_cons0_{0}.npy'.format(num_iterations + 1)))
+            # ch_bot_sediment_cons1     = np.load((save_path_txt,     'ch_bot_sediment_cons1_{0}.npy'.format(num_iterations + 1)))
+            # ch_bot_thickness_cons0     = np.load((save_path_txt,     'ch_bot_thickness_cons0_{0}.npy'.format(num_iterations + 1)))
+            # ch_bot_thickness_cons1     = np.load((save_path_txt,     'ch_bot_thickness_cons1_{0}.npy'.format(num_iterations + 1)))
+        return r
 
 
 def global_coords_to_local_coords(y, x, my_mpi_row, my_mpi_col, p_local_grid_x_dim, p_local_grid_y_dim):

@@ -1,6 +1,7 @@
 import numpy as np
 import warnings
 import os
+from sys import stdout
 
 def ensure_file(file_path):
     if not os.path.exists(file_path):
@@ -207,3 +208,26 @@ def is_square(apositiveint):
         if x in seen: return False
         seen.add(x)
     return True
+
+def dump(obj, nested_level=0, output=stdout):
+    """ This function creates a formatted output for a dict."""
+    spacing = '   '
+    if isinstance(obj, dict):
+        print('%s{' % ((nested_level) * spacing), file=output)
+        for k, v in obj.items():
+            if hasattr(v, '__iter__'):
+                print('%s%s:' % ((nested_level + 1) * spacing, k), file=output)
+                dump(v, nested_level + 1, output)
+            else:
+                print('%s%s: %s' % ((nested_level + 1) * spacing, k, v), file=output)
+        print('%s}' % (nested_level * spacing), file=output)
+    elif isinstance(obj, list):
+        print('%s[' % ((nested_level) * spacing), file=output)
+        for v in obj:
+            if hasattr(v, '__iter__'):
+                dump(v, nested_level + 1, output)
+            else:
+                print('%s%s' % ((nested_level + 1) * spacing, v), file=output)
+        print('%s]' % ((nested_level) * spacing), file=output)
+    else:
+        print('%s%s' % (nested_level * spacing, obj), file=output)
