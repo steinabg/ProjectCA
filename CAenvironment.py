@@ -439,6 +439,8 @@ class CAenvironment:
                         # evaluate spline at positions of hexgrid cells
                         temp = -1*b(self.X[:, :, 1], self.X[:, :, 0], grid=False)
                         return temp # Subtract beacuse temp is 'depth'
+                elif terrain == 'random':
+                    return np.random.rand(self.Ny, self.Nx) * 10
                 else:
                     terrain_path = './Bathymetry/' + terrain + '.npy'
                     try:
@@ -494,7 +496,7 @@ class CAenvironment:
                 dt = 0.01 # TODO, burde kanskje la sim slutte hvis dette skjer
             else:
                 dt = 9999999  # Set a large number so we can use MPI.Reduce MIN.
-        self.save_dt.append(dt)
+        if self.mpi is False: self.save_dt.append(dt)
         return dt
 
     ###### END OF METHODS FROM HEXGRID ##########

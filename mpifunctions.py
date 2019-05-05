@@ -251,19 +251,21 @@ class mpi_environment:
         my_mpi_row = self.my_mpi_row
 
         if my_mpi_col == 0:
-            self.p_local_hexgrid.Q_d[:,0] = np.inf
-            self.p_local_hexgrid.Q_a[:,0] = np.inf
+            self.p_local_hexgrid.Q_d[:,0:2] = np.inf
+            self.p_local_hexgrid.Q_a[:,0:2] = np.inf
         if my_mpi_row == 0:
-            self.p_local_hexgrid.Q_d[0,:] = np.inf
-            self.p_local_hexgrid.Q_a[0,:] = np.inf
+            self.p_local_hexgrid.Q_d[0:2,:] = np.inf
+            self.p_local_hexgrid.Q_a[0:2,:] = np.inf
         if my_mpi_row == (self.p_y_dims-1):
             # print("mympirow == p_ydims. myrank = ", my_rank)
-            self.p_local_hexgrid.Q_d[-1,:] = self.l_params['q_d[interior]']
-            self.p_local_hexgrid.Q_a[-1,1:-1] = self.local_bathy[-1,:] + self.l_params['q_d[interior]']
+            self.p_local_hexgrid.Q_d[-2:,:] = np.inf
+            self.p_local_hexgrid.Q_d[-2:,1:-1] = self.l_params['q_d[interior]']
+            self.p_local_hexgrid.Q_a[-2:,:] = np.inf
+            self.p_local_hexgrid.Q_a[-2:,1:-1] = self.local_bathy[-2:,:] + self.l_params['q_d[interior]']
         if my_mpi_col == (self.p_x_dims-1):
             # print("mympicol == p_xdims. myrank = ", my_rank)
-            self.p_local_hexgrid.Q_d[:,-1] = np.inf
-            self.p_local_hexgrid.Q_a[:,-1] = np.inf
+            self.p_local_hexgrid.Q_d[:,-2:] = np.inf
+            self.p_local_hexgrid.Q_a[:,-2:] = np.inf
 
     def DEBUG_print_mpitopology(self):
         print("my rank = {0}"
@@ -418,16 +420,20 @@ class mpi_environment:
         local_petri_A[:, 0] = self.local_grid_eb.copy()
 
     def mpi_toppling_fix(self):
+        """ This function gets the influx of sediment due to toppling,\
+            and updates the Q_d values of the upper and lower boundaries\
+             of the local grids accordingly."""
         my_mpi_row = self.my_mpi_row
         my_mpi_col = self.my_mpi_col
         g = self.p_local_hexgrid
+        # My outflux:
         t = g.t
         b = g.b
         l = g.l
         r = g.r
-        borders = self.get_mpi_nb_flux(t, b, l, r)
+        borders = self.get_mpi_nb_flux(t, b, l, r)  # Get influx
         # print("rank = ", my_rank, " max(right) = ", np.max(borders[3][:,0]))
-
+        nw, ne, se, sw = borders[4:]
         if my_mpi_row > 0:
             # print("rank ", my_rank, " fixing upper")
             # Update upper bound
@@ -444,6 +450,27 @@ class mpi_environment:
                     # print("Q_d[0,j] = ", g.Q_d[0,j])
                     g.Q_d[1, j] = nQ_d_top
                     # print("nQ_d[0,j] = ", g.Q_d[0, j])
+            # Update nw corner:
+            if my_mpi_col > 0 and nw:
+                nQ_d_nw = g.Q_d[1, 1] + nw
+                for l in range(self.l_params['nj']):
+                    old_cut_nw = g.Q_cbj[1, 1, l] * g.Q_d[1, 1]
+                    g.Q_cbj[1, 1, l] = (old_cut_nw + nw) / nQ_d_nw
+                    # if g.Q_cbj[1, j, l] != 1:
+                    #     print("Q_cbj =", g.Q_cbj[1,j,l])
+                    # print("Q_d[0,j] = ", g.Q_d[0,j])
+                    g.Q_d[1, 1] = nQ_d_nw
+            # Update ne corner:
+            if my_mpi_col < (self.p_x_dims) and ne:
+                nQ_d_ne = g.Q_d[1, -2] + ne
+                for l in range(self.l_params['nj']):
+                    old_cut_ne = g.Q_cbj[1, -2, l] * g.Q_d[1, -2]
+                    g.Q_cbj[1, -2, l] = (old_cut_ne + ne) / nQ_d_ne
+                    # if g.Q_cbj[1, j, l] != 1:
+                    #     print("Q_cbj =", g.Q_cbj[1,j,l])
+                    # print("Q_d[0,j] = ", g.Q_d[0,j])
+                    g.Q_d[1, -2] = nQ_d_ne
+
         if my_mpi_row < (self.p_y_dims):
             # print("rank ", my_rank, " fixing lower")
             # Update lower bound
@@ -455,6 +482,29 @@ class mpi_environment:
                         old_cut_bot = g.Q_cbj[-2, j, l] * g.Q_d[-2, j]
                         g.Q_cbj[-2, j, l] = (old_cut_bot + bot[j, l + 1]) / nQ_d_bot
                     g.Q_d[-2, j] = nQ_d_bot
+
+            # Update sw corner:
+            if my_mpi_col > 0 and sw:
+                nQ_d_sw = g.Q_d[-2, 1] + sw
+                for l in range(self.l_params['nj']):
+                    old_cut_sw = g.Q_cbj[-2, 1, l] * g.Q_d[-2, 1]
+                    g.Q_cbj[-2, 1, l] = (old_cut_sw + sw) / nQ_d_sw
+                    # if g.Q_cbj[1, j, l] != 1:
+                    #     print("Q_cbj =", g.Q_cbj[1,j,l])
+                    # print("Q_d[0,j] = ", g.Q_d[0,j])
+                    g.Q_d[-2, 1] = nQ_d_sw
+
+            # Update se corner:
+            if my_mpi_col > 0 and se:
+                nQ_d_se = g.Q_d[-2, -2] + se
+                for l in range(self.l_params['nj']):
+                    old_cut_se = g.Q_cbj[-2, -2, l] * g.Q_d[-2, -2]
+                    g.Q_cbj[-2, -2, l] = (old_cut_se + se) / nQ_d_se
+                    # if g.Q_cbj[1, j, l] != 1:
+                    #     print("Q_cbj =", g.Q_cbj[1,j,l])
+                    # print("Q_d[0,j] = ", g.Q_d[0,j])
+                    g.Q_d[-2, -2] = nQ_d_se
+
         if my_mpi_col > 0:
             # print("rank ", my_rank, " fixing left")
             # Update left bounds
@@ -484,6 +534,9 @@ class mpi_environment:
                     g.Q_d[j, -2] = nQ_d_right
 
     def get_mpi_nb_flux(self, t, b, l, r):
+        """ This function sends and receives 'sediment flux', i.e.\
+            sediment sendt to another cell due to toppling, in another\
+            local grid."""
         comm = self.comm
         p_local_grid_x_dim = self.p_local_grid_x_dim
         p_local_grid_y_dim = self.p_local_grid_y_dim
@@ -653,20 +706,21 @@ class mpi_environment:
             comm.barrier()
             comm.Allreduce(p_local_dt, p_global_dt, op=MPI.MIN)
             p_global_dt = p_global_dt[0]
+            if p_global_dt >= 9999999:  # If dt = default MPI value set to 0.01 (same as single core)
+                p_global_dt = 0.01
             # print("rank {0}, local_dt = {1}, global dt ={2}".format(self.my_rank, p_local_dt, p_global_dt))
             self.p_local_hexgrid.dt = p_global_dt  # Set dt
             if self.my_rank == 0:
                 self.save_dt.append(p_global_dt)
 
             # Iterate CA
+            # self.print_subgridQ('Qa')
+            # self.print_subgridQ('Qth')
 
             if compare:
                 self.compare_steps(num_iterations, p_global_dt)
             else:
                 self.iterateCA()
-            # if compare:
-            #     self.result_grid.dt = self.result_grid.calc_dt()
-            #     self.compare_mpi_singlecore(num_iterations, p_global_dt, self.result_grid.CAtimeStep)
             if ((num_iterations + 1) % self.sample_rate == 0) and num_iterations > 0:
                 self.sample(num_iterations)
                 if self.my_rank == 0: self.j_values.append(num_iterations + 1)
@@ -679,14 +733,23 @@ class mpi_environment:
             print('{0} is complete. Wall time elapsed = {1}\n'
                   '{2} seconds simulation time.'.format(self.config, wtime, stime))
 
+    def print_subgridQ(self, Q):
+        g = self.p_local_hexgrid
+        if Q == 'Qa':
+            print("rank {0}: g.Q_a =\n{1}".format(self.my_rank, g.Q_a))
+        elif Q == 'Qd':
+            print("rank {0}: g.Q_d =\n{1}".format(self.my_rank, g.Q_d))
+        elif Q == 'Qth':
+            print("rank {0}: g.Q_th =\n{1}".format(self.my_rank, g.Q_th))
+
     def compare_steps(self, j, p_global_dt):
         """ This function compares the mpi result with the\
          single core result after each component of the transition fuction."""
         self.result_grid.addSource()
         self.result_grid.dt = self.result_grid.calc_dt()
-        if self.my_rank == 0 and p_global_dt != self.result_grid.dt:
-            print("rank = {3} image_dt = {0}, result_grid.dt = {1}. equal = {2}".format(p_global_dt, self.result_grid.dt,
-                                                                         p_global_dt == self.result_grid.dt, self.my_rank))
+        if self.my_rank == 0 and np.abs(p_global_dt - self.result_grid.dt) > 1e-15:
+            print("rank = {3} image_dt = {0}, result_grid.dt = {1}. delta = {2}".format(p_global_dt, self.result_grid.dt,
+                                                                         np.abs(p_global_dt - self.result_grid.dt), self.my_rank))
         self.p_local_hexgrid.T_1()
         self.exchange_borders_cube(self.p_local_hexgrid.Q_cj, self.l_params['nj'])
         self.exchange_borders_matrix(self.p_local_hexgrid.Q_th)
@@ -740,16 +803,17 @@ class mpi_environment:
             # print("\nresult_grid = \n",  self.result_grid.Q_th)
             # result_grid.grid.Q_th[1,1] += 1 #induce intentional error
 
-            if np.any(image_Q_th.flatten() != self.result_grid.Q_th.flatten()):
-                ii, jj = np.where(image_Q_th != self.result_grid.Q_th)
+            if np.any(np.abs(image_Q_th -self.result_grid.Q_th)>1e-15):
+                ii, jj = np.where(np.abs(image_Q_th -self.result_grid.Q_th)>1e-15)
                 s = "num_iterations = {0}\n".format(j)
-                # s = s + ''.join("image ={0}\n".format(image_Q_th))
-                # s = s + ''.join("\nresult_grid = {0}\n".format(self.result_grid.Q_th))
+                s = s + ''.join("image ={0}\n".format(image_Q_th))
+                s = s + ''.join("\nresult_grid = {0}\n".format(self.result_grid.Q_th))
                 # s = s + ''.join("local_source_tiles = {0}, {1}\n. result_grid_source = {2},{3}.\n".format(
                 #     p_local_grid_parameters['x'], p_local_grid_parameters['y'], parameters['x'], parameters['y']
                 # ))
-                s = s + ''.join("image_q_th[{0},{1}] = {2} != result_grid.grid.Q_th[{3},{4}] = {5}\n".format(
-                    ii[x], jj[x], image_Q_th[ii[x], jj[x]], ii[x], jj[x], self.result_grid.Q_th[ii[x], jj[x]]) for x in
+                s = s + ''.join("image_q_th[{0},{1}] = {2} != result_grid.grid.Q_th[{3},{4}] = {5}, delta = {6}\n".format(
+                    ii[x], jj[x], image_Q_th[ii[x], jj[x]], ii[x], jj[x], self.result_grid.Q_th[ii[x], jj[x]],
+                    np.abs(image_Q_th[ii[x], jj[x]] - self.result_grid.Q_th[ii[x], jj[x]])) for x in
                                 range(len(ii)))
                 raise Exception("not equal: " + s)
             # print("all clear!")
