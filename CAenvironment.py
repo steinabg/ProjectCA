@@ -1086,7 +1086,8 @@ if __name__ == "__main__":
             CAenv.writeToTxt(j)
         wtime = timer() - start
         stime = sum(CAenv.save_dt)
-        CAenv.print_log("Wall time used = {0}, simulated time = {1}".format(wtime,stime))
+        CAenv.print_log("Wall time used = {0}, simulated time = {1}\n"
+                        "n_cores = 1".format(wtime,stime))
         print('{0} is complete. Wall time elapsed = {1}\n'
               '{2} seconds simulation time.'.format(config, wtime, stime))
 

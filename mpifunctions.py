@@ -729,7 +729,8 @@ class mpi_environment:
         wtime = timer() - start
         if self.my_rank == 0:
             stime = sum(self.save_dt)
-            self.result_grid.print_log("Wall time used = {0}, simulated time = {1}".format(wtime,stime))
+            self.result_grid.print_log("Wall time used = {0}, simulated time = {1}\n"
+                                       "n_cores = {2}".format(wtime,stime, self.num_procs))
             print('{0} is complete. Wall time elapsed = {1}\n'
                   '{2} seconds simulation time.'.format(self.config, wtime, stime))
 
