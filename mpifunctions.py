@@ -864,6 +864,7 @@ class mpi_environment:
                 np.save(self.save_path_txt + 'Q_cbj_{0}'.format(num_iterations + 1), IMAGE_Q_cbj)
                 np.save(self.save_path_txt + 'Q_cj_{0}'.format(num_iterations + 1), IMAGE_Q_cj)
                 np.save(self.save_path_txt + 'Q_d_{0}'.format(num_iterations + 1), IMAGE_Q_d)
+                np.save(self.save_path_txt + 'Q_v_{0}'.format(num_iterations + 1), IMAGE_Q_v)
             if self.plot_bool[3]:  # stability curves
                 self.mass.append(IMAGE_Q_th[:, :, None] * IMAGE_Q_cj)
                 self.massBed.append(np.sum(IMAGE_Q_d[1:-1, 1:-1].flatten(), axis=None))
@@ -895,15 +896,16 @@ class mpi_environment:
         for i in range(self.my_rank * figs_per_proc, upper_lim):
             # print("i = ", i, " len(i_sample_) = ", len(i_sample_values))
             r = self.load_txt_files(self.i_sample_values[i], self.l_params)
-            IMAGE_Q_th, IMAGE_Q_cbj, IMAGE_Q_cj, IMAGE_Q_d = r[0:4]
+            IMAGE_Q_th, IMAGE_Q_cbj, IMAGE_Q_cj, IMAGE_Q_d, IMAGE_Q_v = r[0:5]
             g.Q_th = IMAGE_Q_th
             g.Q_cbj = IMAGE_Q_cbj
             g.Q_cj = IMAGE_Q_cj
             g.Q_d = IMAGE_Q_d
+            g.Q_v = IMAGE_Q_v
             if self.plot_bool[1]: g.plot2d(self.i_sample_values[i])
             if self.plot_bool[0]:
                 ch_bot_outflow, ch_bot_thickness, ch_bot_speed, \
-                ch_bot_sediment, ch_bot_sediment_cons, ch_bot_thickness_cons = r[4:-1]
+                ch_bot_sediment, ch_bot_sediment_cons, ch_bot_thickness_cons = r[5:-1]
                 # TODO plot
 
 
@@ -919,7 +921,8 @@ class mpi_environment:
         IMAGE_Q_cbj = np.load((save_path_txt+ 'Q_cbj_{0}.npy'.format(num_iterations + 1)))
         IMAGE_Q_cj = np.load((save_path_txt+ 'Q_cj_{0}.npy'.format(num_iterations + 1)))
         IMAGE_Q_d = np.load((save_path_txt+ 'Q_d_{0}.npy'.format(num_iterations + 1)))
-        r = [IMAGE_Q_th, IMAGE_Q_cbj, IMAGE_Q_cj, IMAGE_Q_d]
+        IMAGE_Q_v = np.load((save_path_txt+ 'Q_v_{0}.npy'.format(num_iterations + 1)))
+        r = [IMAGE_Q_th, IMAGE_Q_cbj, IMAGE_Q_cj, IMAGE_Q_d, IMAGE_Q_v]
         if self.plot_bool[3]:
             ch_bot_thickness = np.load((save_path_txt+ 'ch_bot_thickness_{0}.npy'.format(num_iterations + 1)))
             ch_bot_outflow = np.load((save_path_txt+ 'ch_bot_outflow_{0}.npy'.format(num_iterations + 1)))

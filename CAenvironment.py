@@ -1,7 +1,7 @@
 import numpy as np
 import mathfunk as ma
 import matplotlib.pyplot as plt
-
+import matplotlib.gridspec as gridspec
 plt.style.use('bmh')
 # import sys
 import os.path
@@ -32,7 +32,7 @@ class CAenvironment:
         self.a = parameters['a']  # Empirical coefficient (used in I_3)
         self.rho_a = parameters['rho_a']  # ambient density
         self.rho_j = parameters['rho_j']  # List of current sediment densities
-        self.D_sj = parameters['d_sj']  # List of sediment-particle diameters [mm?]
+        self.D_sj = parameters['d_sj']  # List of sediment-particle diameters
         self.Nj = parameters['nj']  # Number of sediment types
         self.c_D = parameters['c_d']  # Bed drag coefficient (table 3)
         self.nu = parameters['nu']  # Kinematic viscosity of water at 5 degrees celcius
@@ -45,10 +45,10 @@ class CAenvironment:
         if type(s) != str:
             self.v_sj = s
         elif s.lower() == 'salles' or s.lower() == 'vanrijn':
-            self.v_sj = ma.calc_settling_speed(self.D_sj/1000, self.rho_a, self.rho_j,
+            self.v_sj = ma.calc_settling_speed(self.D_sj, self.rho_a, self.rho_j,
                                                self.g, self.nu)
         elif s.lower() == 'soulsby':
-            self.v_sj = ma.calc_settling_speed(self.D_sj/1000, self.rho_a, self.rho_j,
+            self.v_sj = ma.calc_settling_speed(self.D_sj, self.rho_a, self.rho_j,
                                                self.g, self.nu, method='soulsby')
 
 
@@ -231,7 +231,7 @@ class CAenvironment:
         self.sanityCheck()
 
     def I_1(self):
-        self.Q_o = tra.I_1(self.Q_th, self.Nj, self.Q_cj, self.rho_j, self.rho_a, self.Q_v, self.Q_a,
+        self.Q_o, self.Q_o_no_time = tra.I_1(self.Q_th, self.Nj, self.Q_cj, self.rho_j, self.rho_a, self.Q_v, self.Q_a,
                            self.Ny, self.Nx, self.dx, self.p_f, self.p_adh, self.dt, self.g)
         self.sanityCheck()
 
@@ -242,7 +242,7 @@ class CAenvironment:
     def I_3(self):
         self.Q_v, self.Q_v_is_zero_two_timesteps = tra.I_3(self.g, self.Nj, self.Q_cj, self.rho_j, self.rho_a, self.Ny,
                                                            self.Nx, self.Q_a,
-                                                           self.Q_th, self.Q_o, self.f, self.a,
+                                                           self.Q_th, self.Q_o_no_time, self.f, self.a,
                                                            self.Q_v)  # Update of turbidity flow velocity
         self.sanityCheck()
 
@@ -551,7 +551,102 @@ class CAenvironment:
                     bbox_inches='tight', pad_inches=0, dpi=240)
         plt.close("all")
 
+    def plot2d_current(self, i):
+        N = self.Nj
+
+        gs = gridspec.GridSpec(20, 10*N)
+        fig = plt.figure(figsize=(18, 18))
+        ax1 = fig.add_subplot(gs[:9, :-3])
+        cbar2 = fig.add_subplot(gs[9:10, :-3])
+        ax2 = fig.add_subplot(gs[:9, -3:], sharey=ax1)
+        plt.setp(ax2.get_yticklabels(), visible=False)
+        ax = []
+        for n in range(N):
+            try:
+                ax.append(fig.add_subplot(gs[10:-2, n*10:(n+1)*10], sharey=ax[0]))
+                plt.setp(ax[n].get_yticklabels(), visible=False)
+            except IndexError:
+                ax.append(fig.add_subplot(gs[10:-2, n*10:(n+1)*10]))
+        cbar = fig.add_subplot(gs[-1,:])
+        d = (self.Q_th[1:-1, 1:-1])
+        d[d==0] = np.nan
+        points = ax1.pcolormesh(self.X[1:-1, 1:-1, 0], self.X[1:-1, 1:-1, 1],
+                                  d,
+                                  cmap='Blues', vmin=0)
+        ax1.contour(self.X[:, :, 0], self.X[:, :, 1],
+                      self.bathymetry, colors='black', alpha=0.4)
+        cbar2.set_title("TC height")
+        plt.colorbar(points, shrink=0.8, cax=cbar2, orientation='horizontal')
+        ax1.set_title('Q_th[1:-1,1:-1]. N = {0}'.format(i+1))
+
+        aveQv = np.divide(self.Q_v.sum(1), (self.Q_v!=0).sum(1))
+        ax2.plot(aveQv, self.X[0,:, 0])
+        ax2.set_xlabel("Average speed")
+        ax2.set_ylim([0, np.max(self.X[0,:,0])])
+
+
+
+        sum_qcj = np.sum(self.Q_cj[1:-1,1:-1], axis=2)
+        for n in range(N):
+            ax[n].set_title("D_sj = {0}".format(self.D_sj[n]))
+            p = ax[n].pcolormesh(self.X[1:-1, 1:-1, 0], self.X[1:-1, 1:-1, 1],
+                                  self.Q_cj[1:-1,1:-1,n]/sum_qcj,
+                                  cmap='Reds', vmin=0, vmax=1.)
+            ax[n].contour(self.X[:, :, 0], self.X[:, :, 1],
+                        self.bathymetry, colors='black', alpha=0.4)
+        plt.colorbar(p, cax=cbar, orientation='horizontal', shrink=0.6)
+
+        fig.tight_layout()
+        s1 = str(self.terrain) if self.terrain is None else self.terrain
+        plt.savefig(os.path.join(self.parameters['save_dir'], 'TC_%03ix%03i_%s_thetar%0.0f_%03i.png' % (
+            self.Nx, self.Ny, s1, self.parameters['theta_r'], i + 1)),
+                    bbox_inches='tight', pad_inches=0, dpi=240)
+
+    def plot2d_bed(self, i):
+        N = self.Nj
+
+        gs = gridspec.GridSpec(20, 10*N)
+        fig = plt.figure(figsize=(18, 18))
+        ax1 = fig.add_subplot(gs[:5, :-1])
+        cbar2 = fig.add_subplot(gs[:5, -1:])
+        ax = []
+        for n in range(N):
+            try:
+                ax.append(fig.add_subplot(gs[5:-1, n*10:(n+1)*10], sharey=ax[0]))
+                plt.setp(ax[n].get_yticklabels(), visible=False)
+            except IndexError:
+                ax.append(fig.add_subplot(gs[5:-1, n*10:(n+1)*10]))
+        cbar = fig.add_subplot(gs[-1,:])
+        d = (self.Q_d[1:-1, 1:-1] - self.parameters['q_d[interior]'])
+        dd = np.abs(self.Q_d[1:-1, 1:-1] - self.parameters['q_d[interior]'])
+        points = ax1.pcolormesh(self.X[1:-1, 1:-1, 0], self.X[1:-1, 1:-1, 1],
+                                  d.transpose(),
+                                  cmap='seismic', vmin=-1., vmax=1.)
+        ax1.contour(self.X[:, :, 0], self.X[:, :, 1],
+                      self.bathymetry.transpose(), colors='black', alpha=0.4)
+        plt.colorbar(points, shrink=0.8, cax=cbar2, use_gridspec=True)
+        ax1.set_title('\Delta Q_d[1:-1,1:-1]. N = {0}'.format(i + 1))
+
+
+        for n in range(N):
+            ax[n].set_title("D_sj = {0}".format(self.D_sj[n]))
+            p = ax[n].pcolormesh(self.X[1:-1, 1:-1, 0], self.X[1:-1, 1:-1, 1],
+                                  self.Q_cbj[1:-1,1:-1,n] * dd,
+                                  cmap='Reds', vmin=0, vmax=1.)
+            ax[n].contour(self.X[:, :, 0], self.X[:, :, 1],
+                        self.bathymetry, colors='black', alpha=0.4)
+        plt.colorbar(p, cax=cbar, orientation='horizontal', shrink=0.6)
+
+        fig.tight_layout()
+        s1 = str(self.terrain) if self.terrain is None else self.terrain
+        plt.savefig(os.path.join(self.parameters['save_dir'], 'BED_%03ix%03i_%s_thetar%0.0f_%03i.png' % (
+            self.Nx, self.Ny, s1, self.parameters['theta_r'], i + 1)),
+                    bbox_inches='tight', pad_inches=0, dpi=240)
+        plt.close('all')
+
     def plot2d(self, i):
+        self.plot2d_bed(i)
+        self.plot2d_current(i)
         #fig = plt.figure(figsize=(14, 21))
         #ax = [fig.add_subplot(3, 2, i, aspect='equal') for i in range(1, 7)]
         fig, ax = plt.subplots(ncols=2, nrows=3, figsize=(21, 21), sharex=True, sharey=True, subplot_kw={"aspect": "equal"})
@@ -581,11 +676,12 @@ class CAenvironment:
         ax[2].set_title('Q_cbj[1:-1,1:-1,0]')
 
         points = ax[3].pcolormesh(self.X[1:-1, 1:-1, 0], self.X[1:-1, 1:-1, 1],
-                               self.Q_d[1:-1, 1:-1])
+                               self.Q_d[1:-1, 1:-1]-self.parameters['q_d[interior]'],
+                                  cmap='seismic', vmin=-1., vmax=1.)
         ax[3].contour(self.X[:, :, 0], self.X[:, :, 1],
                                self.bathymetry, colors='black', alpha=0.4)
         plt.colorbar(points, shrink=0.6, ax=ax[3])
-        ax[3].set_title('Q_d[1:-1,1:-1]')
+        ax[3].set_title('\Delta Q_d[1:-1,1:-1]')
 
         try:
             points = ax[4].pcolormesh(self.X[1:-1, 1:-1, 0], self.X[1:-1, 1:-1, 1],
@@ -1036,6 +1132,21 @@ def import_parameters(filename=None):
 
     return parameters
 
+def end_signal(it, parameters, t):
+    """ Takes in number of iterations and compares with either\
+        specified number of iterations or elapsed simulation time 't'.\
+        Returns True if simulation has lasted specified length."""
+    try:
+        tend = parameters['t_end']
+        if t >= tend:
+            return True
+    except KeyError:
+        num_iterations = parameters['num_iterations']
+        if it > num_iterations:
+            return True
+    return False
+
+
 
 if __name__ == "__main__":
     '''
@@ -1065,8 +1176,10 @@ if __name__ == "__main__":
         start = timer()
         j_values = []
         j = 0
-        for j in range(parameters['num_iterations']):
-
+        while True:
+        # for j in range(parameters['num_iterations']):
+            if end_signal(j, parameters, sum(CAenv.save_dt)):
+                break
             CAenv.addSource()
             # CAenv.add_source_constant()
             CAenv.CAtimeStep(compare_cy_py=False)
@@ -1080,6 +1193,7 @@ if __name__ == "__main__":
                 if plot_bool[0]: CAenv.plot1d(j)
                 if plot_bool[1]: CAenv.plot2d(j)
                 if plot_bool[2]: CAenv.plot3d(j)
+            j += 1
         if plot_bool[4]: CAenv.print_npy(j_values)
         if plot_bool[3]:
             CAenv.plotStabilityCurves(j_values)

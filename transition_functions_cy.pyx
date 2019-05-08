@@ -114,7 +114,7 @@ def T_2(int Ny,int Nx,int Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,dou
                     sediment_mean_size *= D_sj[kk] ** Q_cj[ii, jj, kk]
 
                     # Erosion part:
-                    log_2_D_sj[kk] = clog2(D_sj[kk])
+                    log_2_D_sj[kk] = clog2(D_sj[kk] * 1000)
 
                 kappa = 1 - 0.288 * cstd(log_2_D_sj, Nj)
                 # sediment_mean_size = sediment_mean_size ** (1.0 / Nj) / sum_q_cj
@@ -125,8 +125,8 @@ def T_2(int Ny,int Nx,int Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,dou
 
                 for kk in range(Nj):
                     # Deposition part:
-                    fall_velocity_dimless = v_sj[kk] ** (3) * rho_a / ((rho_j[kk] - rho_a) * g * nu)
-                    # fall_velocity_dimless = v_sj[kk]
+                    # fall_velocity_dimless = v_sj[kk] ** (3) * rho_a / ((rho_j[kk] - rho_a) * g * nu)
+                    fall_velocity_dimless = v_sj[kk]
                     near_bed_c = Q_cj[ii, jj, kk] * (0.40 * (D_sj[kk] / sediment_mean_size) ** (1.64) + 1.64)
                     deposition_rate = fall_velocity_dimless * near_bed_c
 
@@ -139,7 +139,7 @@ def T_2(int Ny,int Nx,int Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,dou
                     else:
                         function_reynolds = 0.586 * particle_reynolds ** (1.23)
 
-                    Z_mj = kappa * csqrt(c_D * Q_v[ii, jj]) * function_reynolds / fall_velocity_dimless
+                    Z_mj = kappa * csqrt(c_D * Q_v[ii, jj] * Q_v[ii, jj]) * function_reynolds / fall_velocity_dimless
                     erosion_rate = (1.3 * 1e-7 * Z_mj ** (5)) / (1 + 4.3 * 1e-7 * Z_mj ** (5)) * fall_velocity_dimless
                     # erosion_rate = (1.3 * 1e-7 * Z_mj ** (5)) / (1 + 4.3 * 1e-7 * Z_mj ** (5))
 
@@ -204,7 +204,9 @@ def I_1(double[:,:] Q_th,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,double
 
     '''
     nQ_o = np.zeros((Ny,Nx,6), dtype=np.double, order='C') # Reset outflow
+    nQ_o_no_time = np.zeros((Ny,Nx,6), dtype=np.double, order='C') # Reset outflow
     cdef double [:,:,:] nQ_o_view = nQ_o
+    cdef double [:,:,:] nQ_o_no_time_view = nQ_o_no_time
     cdef int ii,jj,dir, nb_i, nb_j, zz, index
     cdef list
     cdef double Average, r, h_k, g_prime, height_center, Q_o_sum
@@ -286,6 +288,7 @@ def I_1(double[:,:] Q_th,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,double
                     dir = A[zz]
                     f[dir] = Average - nb_h[dir]
                     nQ_o_view[ii,jj,dir] = f[dir] * factor_n * factor_r
+                    nQ_o_no_time_view[ii, jj, dir] = f[dir] * factor_n
                     Q_o_sum += nQ_o_view[ii,jj,dir]
                     if cisnan(nQ_o_view[ii, jj, dir]):
                         raise ValueError
@@ -293,7 +296,7 @@ def I_1(double[:,:] Q_th,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,double
                     raise ValueError
                 free(f)
                 free(nb_h)
-    return nQ_o
+    return nQ_o, nQ_o_no_time
 
 
 def I_2(int Ny,int Nx,int Nj,double[:,:,:] Q_o,double[:,:] Q_th,double[:,:,:] Q_cj):
