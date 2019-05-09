@@ -252,20 +252,34 @@ class mpi_environment:
 
         if my_mpi_col == 0:
             self.p_local_hexgrid.Q_d[:,0:2] = np.inf
+            self.p_local_hexgrid.Q_d[1:-1,0:2] = self.l_params['q_d[interior]']
             self.p_local_hexgrid.Q_a[:,0:2] = np.inf
+            self.p_local_hexgrid.Q_a[1:-1,0:2] = self.local_bathy[:,0:2] + self.l_params['q_d[interior]']
+            self.p_local_hexgrid.Q_th[:, 0:2] = 0
+            self.p_local_hexgrid.Q_cj[:, 0:2] = 0
         if my_mpi_row == 0:
             self.p_local_hexgrid.Q_d[0:2,:] = np.inf
+            self.p_local_hexgrid.Q_d[0:2,1:-1] = self.l_params['q_d[interior]']
             self.p_local_hexgrid.Q_a[0:2,:] = np.inf
+            self.p_local_hexgrid.Q_a[0:2,1:-1] = self.local_bathy[0:2, :] + self.l_params['q_d[interior]']
+            self.p_local_hexgrid.Q_th[0:2,:] = 0
+            self.p_local_hexgrid.Q_cj[0:2,:] = 0
         if my_mpi_row == (self.p_y_dims-1):
             # print("mympirow == p_ydims. myrank = ", my_rank)
             self.p_local_hexgrid.Q_d[-2:,:] = np.inf
             self.p_local_hexgrid.Q_d[-2:,1:-1] = self.l_params['q_d[interior]']
             self.p_local_hexgrid.Q_a[-2:,:] = np.inf
             self.p_local_hexgrid.Q_a[-2:,1:-1] = self.local_bathy[-2:,:] + self.l_params['q_d[interior]']
+            self.p_local_hexgrid.Q_th[-2:,1:-1] = 0
+            self.p_local_hexgrid.Q_cj[-2:,1:-1] = 0
         if my_mpi_col == (self.p_x_dims-1):
             # print("mympicol == p_xdims. myrank = ", my_rank)
             self.p_local_hexgrid.Q_d[:,-2:] = np.inf
+            self.p_local_hexgrid.Q_d[1:-1,-2:] = self.l_params['q_d[interior]']
             self.p_local_hexgrid.Q_a[:,-2:] = np.inf
+            self.p_local_hexgrid.Q_a[1:-1,-2:] = self.local_bathy[:,-2:] + self.l_params['q_d[interior]']
+            self.p_local_hexgrid.Q_th[:,-2:] = 0
+            self.p_local_hexgrid.Q_cj[:,-2:] = 0
 
     def DEBUG_print_mpitopology(self):
         print("my rank = {0}"
@@ -293,6 +307,10 @@ class mpi_environment:
         self.p_local_hexgrid.I_2()
         self.exchange_borders_matrix(self.p_local_hexgrid.Q_th)
         self.exchange_borders_cube(self.p_local_hexgrid.Q_cj, self.l_params['nj'])
+        # Try adding outflow calculation for "new cells"
+        # self.set_local_grid_bc()
+        # self.p_local_hexgrid.I_1()
+        # self.exchange_borders_cube(self.p_local_hexgrid.Q_o, 6)
         self.set_local_grid_bc()
         self.p_local_hexgrid.I_3()
         self.exchange_borders_matrix(self.p_local_hexgrid.Q_v)
@@ -825,6 +843,9 @@ class mpi_environment:
             for generating plots. """
         self.i_sample_values.append(num_iterations)
         bottom_indices = self.bottom_indices
+
+        if self.plot_bool[4]:  # save assembled grids
+            self.p_local_hexgrid.print_npy(num_iterations, self.num_procs)
         # print("sample")
         # Gather grids
         IMAGE_Q_th = self.gather_grid(self.p_local_hexgrid.Q_th)

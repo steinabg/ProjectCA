@@ -242,8 +242,11 @@ class CAenvironment:
     def I_3(self):
         self.Q_v, self.Q_v_is_zero_two_timesteps = tra.I_3(self.g, self.Nj, self.Q_cj, self.rho_j, self.rho_a, self.Ny,
                                                            self.Nx, self.Q_a,
-                                                           self.Q_th, self.Q_o_no_time, self.f, self.a,
+                                                           self.Q_th, self.Q_o, self.f, self.a,
                                                            self.Q_v)  # Update of turbidity flow velocity
+        self.Q_v = self.Q_v / np.sqrt(self.dt)
+        # if (self.parameters['x'] is not None) and (self.parameters['y'] is not None):
+        #     self.Q_v[self.y, self.x] = self.sourcevalues['Q_v']  # TODO, test
         self.sanityCheck()
 
     def I_4(self):
@@ -411,12 +414,12 @@ class CAenvironment:
                     temp = np.sqrt((X[0, :] - 50) * (X[0, :] - 50) + (X[1, :] - 50) * (X[1, :] - 50))
                     return 10 * temp
                 elif terrain == 'rupert':
-                    print("Slope not defined! Using slope=0.08")
+                    print("Using slope={0}".format(slope))
                     temp, junk = ma.generate_rupert_inlet_bathymetry(self.reposeAngle, self.dx, self.Ny, self.Nx)
                     temp = ma.gen_sloped_plane(self.Ny, self.Nx, self.dx, -slope, mat=temp.transpose())
                     return temp
                 elif terrain == 'sloped_plane':
-                    print("Slope not defined! Using slope=0.08")
+                    print("Using slope={0}".format(slope))
                     return ma.gen_sloped_plane(self.Ny, self.Nx, self.dx, slope)
                 elif terrain == 'ranfjorden':
                     #### Redefine X using x0 and y0 ######
@@ -891,6 +894,7 @@ class CAenvironment:
         # grid.Q_th[y, x] += 1.5
         if (self.parameters['x'] is not None) and (self.parameters['y'] is not None):
             if self.parameters['q_th[y,x]'] > 0:
+                self.Q_v[self.y, self.x] = q_v0 # TODO, test
                 self.Q_v[self.y, self.x] = (self.Q_v[self.y, self.x] * self.Q_th[
                     self.y, self.x] + q_v0 * q_th0 * self.dt) / (q_th0 * self.dt + self.Q_th[self.y, self.x])
                 self.Q_th[self.y, self.x] += q_th0 * self.dt
@@ -1009,17 +1013,19 @@ class CAenvironment:
                                  % (self.Nx, self.Ny, s1, i_values[-1], self.parameters['theta_r'])),
                     bbox_inches='tight', pad_inches=0)
 
-    def print_npy(self, i_values):
+    def print_npy(self, i, mpisize=0):
         """
         This function prints substates to .npy format
         """
         s1 = str(self.terrain) if self.terrain is None else self.terrain
         d = self.parameters['save_dir'] + 'npy_files/'
+        if self.mpi:
+            d = d + ''.join("rank_{0}_of_{1}".format(self.my_rank, mpisize))
         ma.ensure_dir(d)
         d = d + ''.join('%03ix%03i_%s_%03i_thetar%0.0f_'
-                        % (self.Nx, self.Ny, s1, i_values[-1], self.parameters['theta_r']))
+                        % (self.Nx, self.Ny, s1, i, self.parameters['theta_r']))
 
-        np.save(d + str('self.Q_th'),self.Q_th)
+        np.save(d + str('self.Q_th'), self.Q_th)
         np.save(d + str('self.Q_v'),self.Q_v)
         np.save(d + str('self.Q_cj'),self.Q_cj)
         np.save(d + str('self.Q_cbj'),self.Q_cbj)
@@ -1193,8 +1199,9 @@ if __name__ == "__main__":
                 if plot_bool[0]: CAenv.plot1d(j)
                 if plot_bool[1]: CAenv.plot2d(j)
                 if plot_bool[2]: CAenv.plot3d(j)
+                if plot_bool[4]: CAenv.print_npy(j)
             j += 1
-        if plot_bool[4]: CAenv.print_npy(j_values)
+
         if plot_bool[3]:
             CAenv.plotStabilityCurves(j_values)
             CAenv.writeToTxt(j)
