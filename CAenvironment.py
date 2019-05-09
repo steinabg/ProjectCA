@@ -1020,7 +1020,7 @@ class CAenvironment:
         s1 = str(self.terrain) if self.terrain is None else self.terrain
         d = self.parameters['save_dir'] + 'npy_files/'
         if self.mpi:
-            d = d + ''.join("rank_{0}_of_{1}".format(self.my_rank, mpisize))
+            d = d + ''.join("rank_{0}_of_{1}/".format(self.my_rank, mpisize))
         ma.ensure_dir(d)
         d = d + ''.join('%03ix%03i_%s_%03i_thetar%0.0f_'
                         % (self.Nx, self.Ny, s1, i, self.parameters['theta_r']))

@@ -95,7 +95,7 @@ class mpi_environment:
         # print("rank {0}, l_params[yx] = {1} ".format(self.my_rank, [self.l_params['y'], self.l_params['x']]))
         self.local_bathy = self.generate_p_local_hex_bathymetry()
         self.l_params['bathymetry'] = self.local_bathy.copy()
-        self.p_local_hexgrid = CAenv.CAenvironment(self.l_params, global_grid=False)
+        self.p_local_hexgrid = CAenv.CAenvironment(self.l_params, global_grid=False, mpi=True)
         self.set_local_grid_bc()
 
         self.local_grid_wb = np.zeros((self.p_local_grid_y_dim + 2), dtype=np.double, order='C')
@@ -110,7 +110,7 @@ class mpi_environment:
         self.border_col_t.Commit()
         self.save_dir = './Data/MPI/' + config + '/'
         self.save_path_txt = self.save_dir + 'binaries/'
-        self.save_path_png = self.save_dir + '/'
+        self.save_path_png = self.save_dir
         self.p_local_hexgrid.parameters['save_dir'] = self.save_path_png
 
         if self.my_rank == 0:
@@ -743,8 +743,8 @@ class mpi_environment:
             if ((num_iterations + 1) % self.sample_rate == 0) and num_iterations > 0:
                 self.sample(num_iterations)
                 if self.my_rank == 0: self.j_values.append(num_iterations + 1)
-
-        self.print_figures()
+        if self.plot_bool[2]:
+            self.print_figures()
         wtime = timer() - start
         if self.my_rank == 0:
             stime = sum(self.save_dt)
