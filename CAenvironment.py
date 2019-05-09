@@ -894,7 +894,7 @@ class CAenvironment:
         # grid.Q_th[y, x] += 1.5
         if (self.parameters['x'] is not None) and (self.parameters['y'] is not None):
             if self.parameters['q_th[y,x]'] > 0:
-                self.Q_v[self.y, self.x] = q_v0 # TODO, test
+                # self.Q_v[self.y, self.x] = q_v0 # TODO, test
                 self.Q_v[self.y, self.x] = (self.Q_v[self.y, self.x] * self.Q_th[
                     self.y, self.x] + q_v0 * q_th0 * self.dt) / (q_th0 * self.dt + self.Q_th[self.y, self.x])
                 self.Q_th[self.y, self.x] += q_th0 * self.dt

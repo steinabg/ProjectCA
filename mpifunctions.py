@@ -111,6 +111,7 @@ class mpi_environment:
         self.save_dir = './Data/MPI/' + config + '/'
         self.save_path_txt = self.save_dir + 'binaries/'
         self.save_path_png = self.save_dir + '/'
+        self.p_local_hexgrid.parameters['save_dir'] = self.save_path_png
 
         if self.my_rank == 0:
             ma.ensure_dir(self.save_path_txt)
