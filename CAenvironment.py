@@ -571,7 +571,7 @@ class CAenvironment:
             except IndexError:
                 ax.append(fig.add_subplot(gs[10:-2, n*10:(n+1)*10]))
         cbar = fig.add_subplot(gs[-1,:])
-        d = (self.Q_th[1:-1, 1:-1])
+        d = (self.Q_th[1:-1, 1:-1]).copy()
         d[d==0] = np.nan
         points = ax1.pcolormesh(self.X[1:-1, 1:-1, 0], self.X[1:-1, 1:-1, 1],
                                   d,
@@ -647,9 +647,60 @@ class CAenvironment:
                     bbox_inches='tight', pad_inches=0, dpi=240)
         plt.close('all')
 
+    def toppling_out2(self, i):
+        fig = plt.figure(figsize=(21,21))
+        ax = fig.add_subplot(111, aspect='equal')
+        points = ax.pcolormesh(self.X[1:-1, 1:-1, 0], self.X[1:-1, 1:-1, 1],
+                self.Q_d[1:-1,1:-1], cmap='Reds')
+        plt.colorbar(points, shrink=0.5, ax=ax)
+        ax.contour(self.X[:, :, 0], self.X[:, :, 1],
+                     self.bathymetry, colors='black', alpha=0.4)
+        plt.xlabel('$x$ [m]')
+        plt.title('$Q_d[1:-1,1:-1]$')
+        plt.ylabel('$y$ [m]')
+        a = plt.axes([.59, .35, .15, .1], aspect='equal')
+        points = plt.pcolormesh(self.X[1:-1, 1:-1, 0], self.X[1:-1, 1:-1, 1],
+                               self.Q_cbj[1:-1, 1:-1, 0], vmin=0., vmax=1., cmap='Greys')
+        plt.title('$Q_{cbj}[1:-1,1:-1,0]$')
+        plt.colorbar(points)
+
+        s1 = str(self.terrain) if self.terrain is None else self.terrain
+        plt.savefig(os.path.join(self.parameters['save_dir'], 'toppling_%03ix%03i_%s_%03i_thetar%0.0f.png' % (
+            self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r'])),
+                    bbox_inches='tight', pad_inches=0, dpi=240)
+        plt.close('all')
+
+    def toppling_out1(self, i):
+        fig, ax = plt.subplots(ncols=2, nrows=1, figsize=(21, 21), sharex=True, sharey=True,
+                               subplot_kw={"aspect": "equal"})
+        ax = ax.flatten()
+
+        points = ax[0].pcolormesh(self.X[1:-1, 1:-1, 0], self.X[1:-1, 1:-1, 1],
+                               self.Q_cbj[1:-1, 1:-1, 0], vmin=0., vmax=1., cmap='Grey')
+        plt.colorbar(points, shrink=0.2, ax=ax[0])
+        ax[0].set_title('$Q_{cbj}[1:-1,1:-1,0]$')
+        ax[0].set_xlabel('$x$ [m]')
+        ax[0].set_ylabel('$y$ [m]')
+
+        d = self.Q_d[1:-1,1:-1].copy()
+        d[d==0] = np.nan
+        points = ax[1].pcolormesh(self.X[1:-1, 1:-1, 0], self.X[1:-1, 1:-1, 1], d, cmap='Reds')
+        ax[1].contour(self.X[:, :, 0], self.X[:, :, 1],
+                               self.bathymetry, colors='black', alpha=0.4)
+        plt.colorbar(points, shrink=0.2, ax=ax[1])
+        ax[1].set_title('$Q_d[1:-1,1:-1]$')
+        ax[1].set_xlabel('$x$ [m]')
+        plt.tight_layout()
+        s1 = str(self.terrain) if self.terrain is None else self.terrain
+        plt.savefig(os.path.join(self.parameters['save_dir'], 'toppling_%03ix%03i_%s_%03i_thetar%0.0f.png' % (
+            self.Nx, self.Ny, s1, i + 1, self.parameters['theta_r'])),
+                    bbox_inches='tight', pad_inches=0, dpi=240)
+        plt.close('all')
+
     def plot2d(self, i):
-        self.plot2d_bed(i)
-        self.plot2d_current(i)
+        self.toppling_out2(i)
+        # self.plot2d_bed(i)
+        # self.plot2d_current(i)
         #fig = plt.figure(figsize=(14, 21))
         #ax = [fig.add_subplot(3, 2, i, aspect='equal') for i in range(1, 7)]
         fig, ax = plt.subplots(ncols=2, nrows=3, figsize=(21, 21), sharex=True, sharey=True, subplot_kw={"aspect": "equal"})
@@ -665,8 +716,9 @@ class CAenvironment:
         plt.colorbar(points, shrink=0.6, ax=ax[0])
         ax[0].set_title('Q_cj[:,:,0]. n = ' + str(i + 1))
 
-        points = ax[1].pcolormesh(self.X[:, :, 0], self.X[:, :, 1],
-                               np.log10(self.Q_th))
+        with np.errstate(divide='ignore'):
+            points = ax[1].pcolormesh(self.X[:, :, 0], self.X[:, :, 1],
+                                   np.log10(self.Q_th))
         ax[1].contour(self.X[:, :, 0], self.X[:, :, 1],
                                self.bathymetry, colors='black', alpha=0.4)
         ax[1].scatter(self.X[ind[0], ind[1], 0], self.X[ind[0], ind[1], 1], c='r')  # Targeting

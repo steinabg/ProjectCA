@@ -34,8 +34,12 @@ def T_1(int Ny,int Nx,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,double[:,
         for jj in range(Nx):
             if (Q_th[ii, jj] > 0) and (Q_v[ii,jj] > 0) and (ii > 0) and (ii < Ny - 1) and (jj > 0) and (jj < Nx - 1):
                 g_prime = 0.0
+                Q_cj_sum = 0.0
                 for zz in range(Nj):
                     g_prime += g * (Q_cj[ii, jj, zz] * (rho_j[zz] - rho_a) / rho_a)
+                    # g_prime += g * ( (rho_j[zz] - rho_a) / rho_a)
+                    Q_cj_sum += Q_cj[ii, jj, zz]
+                g_prime = g_prime / Q_cj_sum
                 Ri_number = g_prime * Q_th[ii, jj] / (Q_v[ii, jj] * Q_v[ii, jj])
                 dimless_entrainment_rate = 0.075 / csqrt(1.0 + 718.0 * (Ri_number) ** (2.4))
                 entrainment_rate = Q_v[ii, jj] * dimless_entrainment_rate
@@ -228,8 +232,12 @@ def I_1(double[:,:] Q_th,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,double
         for jj in range(1, Nx - 1):
             if (Q_th[ii,jj] > 0.0): # If cell has flow perform algorithm
                 g_prime = 0.0
+                Q_cj_sum = 0.0
                 for kk in range(Nj):
                     g_prime += g * (Q_cj[ii, jj, kk] * (rho_j[kk] - rho_a) / rho_a)
+                    Q_cj_sum += Q_cj[ii, jj, kk]
+                    # g_prime += g * ( (rho_j[kk] - rho_a) / rho_a)
+                g_prime = g_prime / Q_cj_sum
                 h_k = 0.5 * Q_v[ii,jj] * Q_v[ii,jj] / g_prime
                 r = Q_th[ii,jj] + h_k
                 t = np.sqrt(2 * r * g_prime) * dt / dx
@@ -241,8 +249,12 @@ def I_1(double[:,:] Q_th,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,double
         for jj in range(1, Nx - 1):
             if (Q_th[ii,jj] > 0.0): # If cell has flow perform algorithm
                 g_prime = 0.0
+                Q_cj_sum = 0.0
                 for kk in range(Nj):
+                    # g_prime += g * ( (rho_j[kk] - rho_a) / rho_a)
                     g_prime += g * (Q_cj[ii, jj, kk] * (rho_j[kk] - rho_a) / rho_a)
+                    Q_cj_sum += Q_cj[ii, jj, kk]
+                g_prime = g_prime / Q_cj_sum
                 h_k = 0.5 * Q_v[ii,jj] * Q_v[ii,jj] / g_prime
                 r = Q_th[ii,jj] + h_k
                 height_center = Q_a[ii,jj] + r
@@ -382,7 +394,9 @@ def I_3(double g,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,int Ny,int Nx,
                 num_removed = 0
                 for kk in range(Nj):
                     g_prime += g * (Q_cj[ii, jj, kk] * (rho_j[kk] - rho_a) / rho_a)
+                    # g_prime += g * ( (rho_j[kk] - rho_a) / rho_a)
                     Q_cj_sum += Q_cj[ii,jj,kk]
+                g_prime = g_prime / Q_cj_sum
                 for kk in range(6):
                     nb_ii = ii + nb_index[kk][0]
                     nb_jj = jj + nb_index[kk][1]

@@ -246,41 +246,74 @@ class mpi_environment:
                       my_col * self.p_local_grid_x_dim:((my_col + 1) * self.p_local_grid_x_dim)]
         return local_bathy
 
-    def set_local_grid_bc(self):
+    def set_local_grid_bc(self, type='barrier'):
         """ Sets edge cells in appropriate mpi ranks to boundary values """
         my_mpi_col = self.my_mpi_col
         my_mpi_row = self.my_mpi_row
 
-        if my_mpi_col == 0:
-            self.p_local_hexgrid.Q_d[:,0:2] = np.inf
-            self.p_local_hexgrid.Q_d[1:-1,0:2] = self.l_params['q_d[interior]']
-            self.p_local_hexgrid.Q_a[:,0:2] = np.inf
-            self.p_local_hexgrid.Q_a[1:-1,0:2] = self.local_bathy[:,0:2] + self.l_params['q_d[interior]']
-            self.p_local_hexgrid.Q_th[:, 0:2] = 0
-            self.p_local_hexgrid.Q_cj[:, 0:2] = 0
-        if my_mpi_row == 0:
-            self.p_local_hexgrid.Q_d[0:2,:] = np.inf
-            self.p_local_hexgrid.Q_d[0:2,1:-1] = self.l_params['q_d[interior]']
-            self.p_local_hexgrid.Q_a[0:2,:] = np.inf
-            self.p_local_hexgrid.Q_a[0:2,1:-1] = self.local_bathy[0:2, :] + self.l_params['q_d[interior]']
-            self.p_local_hexgrid.Q_th[0:2,:] = 0
-            self.p_local_hexgrid.Q_cj[0:2,:] = 0
-        if my_mpi_row == (self.p_y_dims-1):
-            # print("mympirow == p_ydims. myrank = ", my_rank)
-            self.p_local_hexgrid.Q_d[-2:,:] = np.inf
-            self.p_local_hexgrid.Q_d[-2:,1:-1] = self.l_params['q_d[interior]']
-            self.p_local_hexgrid.Q_a[-2:,:] = np.inf
-            self.p_local_hexgrid.Q_a[-2:,1:-1] = self.local_bathy[-2:,:] + self.l_params['q_d[interior]']
-            self.p_local_hexgrid.Q_th[-2:,1:-1] = 0
-            self.p_local_hexgrid.Q_cj[-2:,1:-1] = 0
-        if my_mpi_col == (self.p_x_dims-1):
-            # print("mympicol == p_xdims. myrank = ", my_rank)
-            self.p_local_hexgrid.Q_d[:,-2:] = np.inf
-            self.p_local_hexgrid.Q_d[1:-1,-2:] = self.l_params['q_d[interior]']
-            self.p_local_hexgrid.Q_a[:,-2:] = np.inf
-            self.p_local_hexgrid.Q_a[1:-1,-2:] = self.local_bathy[:,-2:] + self.l_params['q_d[interior]']
-            self.p_local_hexgrid.Q_th[:,-2:] = 0
-            self.p_local_hexgrid.Q_cj[:,-2:] = 0
+        if type == 'absorb':
+
+            if my_mpi_col == 0:
+                self.p_local_hexgrid.Q_d[:,0:2] = np.inf
+                self.p_local_hexgrid.Q_d[1:-1,0:2] = self.l_params['q_d[interior]']
+                self.p_local_hexgrid.Q_a[:,0:2] = np.inf
+                self.p_local_hexgrid.Q_a[1:-1,0:2] = self.local_bathy[:,0:2] + self.l_params['q_d[interior]']
+                self.p_local_hexgrid.Q_th[:, 0:2] = 0
+                self.p_local_hexgrid.Q_cj[:, 0:2] = 0
+            if my_mpi_row == 0:
+                self.p_local_hexgrid.Q_d[0:2,:] = np.inf
+                self.p_local_hexgrid.Q_d[0:2,1:-1] = self.l_params['q_d[interior]']
+                self.p_local_hexgrid.Q_a[0:2,:] = np.inf
+                self.p_local_hexgrid.Q_a[0:2,1:-1] = self.local_bathy[0:2, :] + self.l_params['q_d[interior]']
+                self.p_local_hexgrid.Q_th[0:2,:] = 0
+                self.p_local_hexgrid.Q_cj[0:2,:] = 0
+            if my_mpi_row == (self.p_y_dims-1):
+                # print("mympirow == p_ydims. myrank = ", my_rank)
+                self.p_local_hexgrid.Q_d[-2:,:] = np.inf
+                self.p_local_hexgrid.Q_d[-2:,1:-1] = self.l_params['q_d[interior]']
+                self.p_local_hexgrid.Q_a[-2:,:] = np.inf
+                self.p_local_hexgrid.Q_a[-2:,1:-1] = self.local_bathy[-2:,:] + self.l_params['q_d[interior]']
+                self.p_local_hexgrid.Q_th[-2:,1:-1] = 0
+                self.p_local_hexgrid.Q_cj[-2:,1:-1] = 0
+            if my_mpi_col == (self.p_x_dims-1):
+                # print("mympicol == p_xdims. myrank = ", my_rank)
+                self.p_local_hexgrid.Q_d[:,-2:] = np.inf
+                self.p_local_hexgrid.Q_d[1:-1,-2:] = self.l_params['q_d[interior]']
+                self.p_local_hexgrid.Q_a[:,-2:] = np.inf
+                self.p_local_hexgrid.Q_a[1:-1,-2:] = self.local_bathy[:,-2:] + self.l_params['q_d[interior]']
+                self.p_local_hexgrid.Q_th[:,-2:] = 0
+                self.p_local_hexgrid.Q_cj[:,-2:] = 0
+        elif type == 'barrier':
+            if my_mpi_col == 0:
+                self.p_local_hexgrid.Q_d[:,0] = np.inf
+                # self.p_local_hexgrid.Q_d[1:-1,0] = self.l_params['q_d[interior]']
+                self.p_local_hexgrid.Q_a[:,0] = np.inf
+                # self.p_local_hexgrid.Q_a[1:-1,0] = self.local_bathy[:,0] + self.l_params['q_d[interior]']
+                self.p_local_hexgrid.Q_th[:, 0] = 0
+                self.p_local_hexgrid.Q_cj[:, 0] = 0
+            if my_mpi_row == 0:
+                self.p_local_hexgrid.Q_d[0,:] = np.inf
+                # self.p_local_hexgrid.Q_d[0,1:-1] = self.l_params['q_d[interior]']
+                self.p_local_hexgrid.Q_a[0,:] = np.inf
+                # self.p_local_hexgrid.Q_a[0,1:-1] = self.local_bathy[0, :] + self.l_params['q_d[interior]']
+                self.p_local_hexgrid.Q_th[0,:] = 0
+                self.p_local_hexgrid.Q_cj[0,:] = 0
+            if my_mpi_row == (self.p_y_dims-1):
+                # print("mympirow == p_ydims. myrank = ", my_rank)
+                self.p_local_hexgrid.Q_d[-1,:] = np.inf
+                # self.p_local_hexgrid.Q_d[-1,1:-1] = self.l_params['q_d[interior]']
+                self.p_local_hexgrid.Q_a[-1,:] = np.inf
+                # self.p_local_hexgrid.Q_a[-1,1:-1] = self.local_bathy[-1,:] + self.l_params['q_d[interior]']
+                self.p_local_hexgrid.Q_th[-1,1:-1] = 0
+                self.p_local_hexgrid.Q_cj[-1,1:-1] = 0
+            if my_mpi_col == (self.p_x_dims-1):
+                # print("mympicol == p_xdims. myrank = ", my_rank)
+                self.p_local_hexgrid.Q_d[:,-1] = np.inf
+                # self.p_local_hexgrid.Q_d[1:-1,-1] = self.l_params['q_d[interior]']
+                self.p_local_hexgrid.Q_a[:,-1] = np.inf
+                # self.p_local_hexgrid.Q_a[1:-1,-1] = self.local_bathy[:,-1] + self.l_params['q_d[interior]']
+                self.p_local_hexgrid.Q_th[:,-1] = 0
+                self.p_local_hexgrid.Q_cj[:,-1] = 0
 
     def DEBUG_print_mpitopology(self):
         print("my rank = {0}"
@@ -470,27 +503,28 @@ class mpi_environment:
                     g.Q_d[1, j] = nQ_d_top
                     # print("nQ_d[0,j] = ", g.Q_d[0, j])
             # Update nw corner:
-            if my_mpi_col > 0 and nw:
-                nQ_d_nw = g.Q_d[1, 1] + nw
+            # print("here! ", nw, borders[4])
+            if my_mpi_col > 0 and nw[0]:
+                nQ_d_nw = g.Q_d[1, 1] + nw[0]
                 for l in range(self.l_params['nj']):
                     old_cut_nw = g.Q_cbj[1, 1, l] * g.Q_d[1, 1]
-                    g.Q_cbj[1, 1, l] = (old_cut_nw + nw) / nQ_d_nw
-                    # if g.Q_cbj[1, j, l] != 1:
+                    g.Q_cbj[1, 1, l] = (old_cut_nw + nw[l+1]) / nQ_d_nw
+            #         # if g.Q_cbj[1, j, l] != 1:
                     #     print("Q_cbj =", g.Q_cbj[1,j,l])
                     # print("Q_d[0,j] = ", g.Q_d[0,j])
-                    g.Q_d[1, 1] = nQ_d_nw
+                g.Q_d[1, 1] = nQ_d_nw
             # Update ne corner:
-            if my_mpi_col < (self.p_x_dims) and ne:
-                nQ_d_ne = g.Q_d[1, -2] + ne
+            if my_mpi_col < (self.p_x_dims-1) and ne[0]:
+                nQ_d_ne = g.Q_d[1, -2] + ne[0]
                 for l in range(self.l_params['nj']):
                     old_cut_ne = g.Q_cbj[1, -2, l] * g.Q_d[1, -2]
-                    g.Q_cbj[1, -2, l] = (old_cut_ne + ne) / nQ_d_ne
+                    g.Q_cbj[1, -2, l] = (old_cut_ne + ne[l+1]) / nQ_d_ne
                     # if g.Q_cbj[1, j, l] != 1:
                     #     print("Q_cbj =", g.Q_cbj[1,j,l])
                     # print("Q_d[0,j] = ", g.Q_d[0,j])
-                    g.Q_d[1, -2] = nQ_d_ne
+                g.Q_d[1, -2] = nQ_d_ne
 
-        if my_mpi_row < (self.p_y_dims):
+        if my_mpi_row < (self.p_y_dims - 1):
             # print("rank ", my_rank, " fixing lower")
             # Update lower bound
             bot = borders[1]
@@ -503,26 +537,26 @@ class mpi_environment:
                     g.Q_d[-2, j] = nQ_d_bot
 
             # Update sw corner:
-            if my_mpi_col > 0 and sw:
-                nQ_d_sw = g.Q_d[-2, 1] + sw
+            if my_mpi_col > 0 and sw[0]:
+                nQ_d_sw = g.Q_d[-2, 1] + sw[0]
                 for l in range(self.l_params['nj']):
                     old_cut_sw = g.Q_cbj[-2, 1, l] * g.Q_d[-2, 1]
-                    g.Q_cbj[-2, 1, l] = (old_cut_sw + sw) / nQ_d_sw
+                    g.Q_cbj[-2, 1, l] = (old_cut_sw + sw[l+1]) / nQ_d_sw
                     # if g.Q_cbj[1, j, l] != 1:
                     #     print("Q_cbj =", g.Q_cbj[1,j,l])
                     # print("Q_d[0,j] = ", g.Q_d[0,j])
-                    g.Q_d[-2, 1] = nQ_d_sw
+                g.Q_d[-2, 1] = nQ_d_sw
 
             # Update se corner:
-            if my_mpi_col > 0 and se:
-                nQ_d_se = g.Q_d[-2, -2] + se
+            if my_mpi_col > 0 and se[0]:
+                nQ_d_se = g.Q_d[-2, -2] + se[0]
                 for l in range(self.l_params['nj']):
                     old_cut_se = g.Q_cbj[-2, -2, l] * g.Q_d[-2, -2]
-                    g.Q_cbj[-2, -2, l] = (old_cut_se + se) / nQ_d_se
+                    g.Q_cbj[-2, -2, l] = (old_cut_se + se[l+1]) / nQ_d_se
                     # if g.Q_cbj[1, j, l] != 1:
                     #     print("Q_cbj =", g.Q_cbj[1,j,l])
                     # print("Q_d[0,j] = ", g.Q_d[0,j])
-                    g.Q_d[-2, -2] = nQ_d_se
+                g.Q_d[-2, -2] = nQ_d_se
 
         if my_mpi_col > 0:
             # print("rank ", my_rank, " fixing left")
@@ -539,8 +573,9 @@ class mpi_environment:
                         #     print("left[j,:] = ", left[j,:])
                         #     print("Q_cbj =", g.Q_cbj[1,j,l])
                     g.Q_d[j, 1] = nQ_d_left
-        if my_mpi_col < (self.p_x_dims):
-            # print("rank ", my_rank, " fixing right")
+        if my_mpi_col < (self.p_x_dims - 1):
+            # print("rank ", self.my_rank, " fixing right", "col  =",
+            #       self.my_mpi_col," p_x_dims =",self.p_x_dims )
             # Update right bounds
             right = borders[3]
             for j in range(1, self.p_local_grid_y_dim + 1):
@@ -566,7 +601,7 @@ class mpi_environment:
         bot = np.zeros((p_local_grid_x_dim + 2, nj+1), dtype=np.double, order='C')
         left = np.zeros((p_local_grid_y_dim + 2, nj+1), dtype=np.double, order='C')
         right = np.zeros((p_local_grid_y_dim + 2, nj+1), dtype=np.double, order='C')
-        nw = ne = se = sw = np.zeros((1), dtype=np.double) # Corner receive buffers
+        nw = ne = se = sw = np.zeros((nj+1), dtype=np.double)  # Corner receive buffers
 
         # Send up, recv from down
         comm.Sendrecv(
@@ -611,37 +646,37 @@ class mpi_environment:
 
         # Send NW, recv from SE
         comm.Sendrecv(
-            [send_nw, 1, MPI.DOUBLE],
+            [send_nw, nj+1, MPI.DOUBLE],
             neighbor_processes[self.NW],
             0,
-            [se, 1, MPI.DOUBLE],
+            [se, nj+1, MPI.DOUBLE],
             neighbor_processes[self.SE],
             0
         )
         # Send SE, recv from NW
         comm.Sendrecv(
-            [send_se, 1, MPI.DOUBLE],
+            [send_se, nj+1, MPI.DOUBLE],
             neighbor_processes[self.SE],
             0,
-            [nw, 1, MPI.DOUBLE],
+            [nw, nj+1, MPI.DOUBLE],
             neighbor_processes[self.NW],
             0
         )
         # Send NE, recv from SW
         comm.Sendrecv(
-            [send_ne, 1, MPI.DOUBLE],
+            [send_ne, nj+1, MPI.DOUBLE],
             neighbor_processes[self.NE],
             0,
-            [sw, 1, MPI.DOUBLE],
+            [sw, nj+1, MPI.DOUBLE],
             neighbor_processes[self.SW],
             0
         )
         # Send SW, recv from NE
         comm.Sendrecv(
-            [send_sw, 1, MPI.DOUBLE],
+            [send_sw, nj+1, MPI.DOUBLE],
             neighbor_processes[self.SW],
             0,
-            [ne, 1, MPI.DOUBLE],
+            [ne, nj+1, MPI.DOUBLE],
             neighbor_processes[self.NE],
             0
         )
@@ -703,18 +738,25 @@ class mpi_environment:
         """ Called by user in separate script. Starts simulation. """
         comm = self.comm
         start = timer()
+
+        # Add source
+        self.p_local_hexgrid.addSource()
+
+        # Exchange borders
+        self.exchange_borders_matrix(self.p_local_hexgrid.Q_th)
+        self.exchange_borders_matrix(self.p_local_hexgrid.Q_v)
+        self.exchange_borders_cube(self.p_local_hexgrid.Q_cbj, self.l_params['nj'])
+        self.exchange_borders_cube(self.p_local_hexgrid.Q_cj, self.l_params['nj'])
+        self.exchange_borders_matrix(self.p_local_hexgrid.Q_d)
+        self.exchange_borders_matrix(self.p_local_hexgrid.Q_a)
+        self.exchange_borders_cube(self.p_local_hexgrid.Q_o, 6)
+        self.set_local_grid_bc()
+
         for num_iterations in range(self.ITERATIONS):
             # Add source
             self.p_local_hexgrid.addSource()
 
-            # Exchange borders
-            self.exchange_borders_matrix(self.p_local_hexgrid.Q_th)
-            self.exchange_borders_matrix(self.p_local_hexgrid.Q_v)
-            self.exchange_borders_cube(self.p_local_hexgrid.Q_cbj, self.l_params['nj'])
-            self.exchange_borders_cube(self.p_local_hexgrid.Q_cj, self.l_params['nj'])
-            self.exchange_borders_matrix(self.p_local_hexgrid.Q_d)
-            self.exchange_borders_matrix(self.p_local_hexgrid.Q_a)
-            self.exchange_borders_cube(self.p_local_hexgrid.Q_o, 6)
+
             self.set_local_grid_bc()
 
             # Calculate time step and set common dt in all local grids
@@ -743,7 +785,7 @@ class mpi_environment:
             if ((num_iterations + 1) % self.sample_rate == 0) and num_iterations > 0:
                 self.sample(num_iterations)
                 if self.my_rank == 0: self.j_values.append(num_iterations + 1)
-        if self.plot_bool[2]:
+        if self.plot_bool[1]:
             self.print_figures()
         wtime = timer() - start
         if self.my_rank == 0:
