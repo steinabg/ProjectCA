@@ -417,7 +417,7 @@ def I_3(double g,int Nj,double[:,:,:] Q_cj,int[:] rho_j,int rho_a,int Ny,int Nx,
     return nQ_v, Q_v_is_zero_two_timesteps
 
 
-def I_4(double[:,:] Q_d,int Ny,int Nx,int Nj,double dx,double reposeAngle,double[:,:,:] Q_cbj,double[:,:] Q_a,double[:,:,:] seaBedDiff):  # Toppling rule
+def I_4(double[:,:] Q_d,int Ny,int Nx,int Nj,double dx,double reposeAngle,double[:,:,:] Q_cbj,double[:,:] Q_a,double[:,:,:] seaBedDiff, debug=0):  # Toppling rule
     nQ_d = np.zeros((Ny,Nx), dtype=np.double, order='C')
     nQ_a = np.zeros((Ny,Nx), dtype=np.double, order='C')
     nQ_cbj = np.zeros((Ny,Nx, Nj), dtype=np.double, order='C')
@@ -464,6 +464,10 @@ def I_4(double[:,:] Q_d,int Ny,int Nx,int Nj,double dx,double reposeAngle,double
                     nb_ii = ii + nb_index[kk][0]
                     nb_jj = jj + nb_index[kk][1]
                     diff[kk] = Q_d[ii,jj] - Q_d[nb_ii, nb_jj] + seaBedDiff[ii-1,jj-1,kk]
+                    if debug and ii == Ny-2 and jj == 5:
+                        print("diff[kk] = ", diff[kk] , ". Q_d: ", Q_d[ii,jj], " + Q_nb: ", Q_d[nb_ii,nb_jj], " sbdiff = ", seaBedDiff[ii-1,jj-1,kk],
+                              "Q_a: ", Q_a[ii,jj], " Q_anb = ", Q_a[nb_ii, nb_jj])
+                        # print("Q_d = ", Q_d[ii,jj], "Q_d_south = ", Q_d[ii+1,jj], " diff = ", diff[kk], " kk = ", kk)
                     angle = carctan(diff[kk]/dx)
                     if angle > reposeAngle:
                         give_dir[num_recv] = kk

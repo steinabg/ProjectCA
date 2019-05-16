@@ -132,7 +132,11 @@ class CAenvironment:
                              'Q_v': parameters['q_v[y,x]'],
                              'Q_d': parameters['q_d[y,x]'],
                              'Q_cj': l1, 'Q_cbj': l2}
-
+        # FOR DEBUGGING
+        if global_grid == 0:
+            self.my_rank = parameters['rank']
+        else:
+            self.my_rank = -1
 
         self.bathymetry = self.Q_a.copy()
         self.Q_a += self.Q_d.copy()  # Add sand layer to bed height
@@ -155,11 +159,7 @@ class CAenvironment:
             except KeyError:
                 print("Toppling rule keyword not found! Skipping toppling before simulation.")
 
-        # FOR DEBUGGING
-        if global_grid == 0:
-            self.my_rank = parameters['rank']
-        else:
-            self.my_rank = -1
+
         self.unphysical_substate = {'Q_th': 0, 'Q_v': 0, 'Q_cj': 0, 'Q_cbj': 0, 'Q_d': 0, 'Q_o': 0}
         self.Erosionrate_sample = []
         self.Depositionrate_sample = []
@@ -249,11 +249,11 @@ class CAenvironment:
         #     self.Q_v[self.y, self.x] = self.sourcevalues['Q_v']  # TODO, test
         self.sanityCheck()
 
-    def I_4(self):
+    def I_4(self, debug=0):
         self.Q_a, self.Q_d, self.Q_cbj, self.t, self.b, self.l, self.r = tra.I_4(self.Q_d, self.Ny, self.Nx, self.Nj,
                                                                                  self.dx, self.reposeAngle, self.Q_cbj,
                                                                                  self.Q_a,
-                                                                                 self.seaBedDiff)  # Toppling rule
+                                                                                 self.seaBedDiff, debug=debug)  # Toppling rule
         self.sanityCheck()
 
     def time_step_compare_cy_py(self, global_grid=True, tol=1e-12):
@@ -344,6 +344,10 @@ class CAenvironment:
 
     def sanityCheck(self):
         # Round off numerical error
+        if np.any(np.logical_and(self.Q_d < 1e-15, self.Q_d>0)):
+            self.Q_cbj[np.logical_and(self.Q_d < 1e-15, self.Q_d > 0), :] = 0
+            self.Q_d[np.logical_and(self.Q_d < 1e-15, self.Q_d>0)] = 0
+
         # self.Q_cbj[self.Q_cbj > 0 & self.Q_cbj < (1-1e-16)] = 1
 
         # DEBUGGING: Check for unphysical values
@@ -1094,14 +1098,16 @@ class CAenvironment:
         fig = plt.figure(figsize=(10, 6))
         ind = np.unravel_index(np.argmax(self.Q_th, axis=None), self.Q_th.shape)
 
-        points = plt.scatter(self.X[:, :, 0].flatten(), self.X[:, :, 1].flatten(),
-                               c=self.Q_a[:, :].flatten())
+        points = plt.contourf(self.X[:, :, 0], self.X[:, :, 1],
+                               self.bathymetry)
         plt.scatter(self.X[self.y, self.x, 0], self.X[self.y,self.x, 1], c='r', label='source')  # Targeting
         plt.legend()
         plt.colorbar(points, shrink=0.6)
         plt.savefig(os.path.join(self.parameters['save_dir'], 'bathymetry.png'),
                     bbox_inches='tight', pad_inches=0, dpi=240)
         plt.close('all')
+        if self.mpi:
+            np.save(self.parameters['save_dir']+ '/binaries/bathymetry', self.bathymetry)
 
     def print_log(self, loop: str):
         """ This function prints the variables used to a timestamped file.\

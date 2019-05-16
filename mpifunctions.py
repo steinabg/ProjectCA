@@ -139,6 +139,10 @@ class mpi_environment:
 
         self.result_grid.parameters['save_dir'] = self.save_path_png
 
+        # Mpi fix?
+        self.exchange_borders_matrix(self.p_local_hexgrid.Q_a)
+        self.p_local_hexgrid.seaBedDiff = self.p_local_hexgrid.calc_bathymetryDiff()
+
     def define_mpi_diagonals(self):
         """
         This function defines diagonal neighbors in the mpi cartesian topology.
@@ -246,7 +250,7 @@ class mpi_environment:
                       my_col * self.p_local_grid_x_dim:((my_col + 1) * self.p_local_grid_x_dim)]
         return local_bathy
 
-    def set_local_grid_bc(self, type='barrier'):
+    def set_local_grid_bc(self, type='absorb'):
         """ Sets edge cells in appropriate mpi ranks to boundary values """
         my_mpi_col = self.my_mpi_col
         my_mpi_row = self.my_mpi_row
@@ -501,28 +505,31 @@ class mpi_environment:
                         #     print("Q_cbj =", g.Q_cbj[1,j,l])
                     # print("Q_d[0,j] = ", g.Q_d[0,j])
                     g.Q_d[1, j] = nQ_d_top
+                    g.Q_a[1, j] += top[j,0]
                     # print("nQ_d[0,j] = ", g.Q_d[0, j])
-            # Update nw corner:
-            # print("here! ", nw, borders[4])
-            if my_mpi_col > 0 and nw[0]:
-                nQ_d_nw = g.Q_d[1, 1] + nw[0]
-                for l in range(self.l_params['nj']):
-                    old_cut_nw = g.Q_cbj[1, 1, l] * g.Q_d[1, 1]
-                    g.Q_cbj[1, 1, l] = (old_cut_nw + nw[l+1]) / nQ_d_nw
+            # # Update nw corner:
+            # # print("here! ", nw, borders[4])
+            # if my_mpi_col > 0 and nw[0]:
+            #     nQ_d_nw = g.Q_d[1, 1] + nw[0]
+            #     for l in range(self.l_params['nj']):
+            #         old_cut_nw = g.Q_cbj[1, 1, l] * g.Q_d[1, 1]
+            #         g.Q_cbj[1, 1, l] = (old_cut_nw + nw[l+1]) / nQ_d_nw
+            # #         # if g.Q_cbj[1, j, l] != 1:
+            #         #     print("Q_cbj =", g.Q_cbj[1,j,l])
+            #         # print("Q_d[0,j] = ", g.Q_d[0,j])
+            #     g.Q_d[1, 1] = nQ_d_nw
+            #     g.Q_a[1, 1] += nw[0]
+            # # Update ne corner:
+            # if my_mpi_col < (self.p_x_dims-1) and ne[0]:
+            #     nQ_d_ne = g.Q_d[1, -2] + ne[0]
+            #     for l in range(self.l_params['nj']):
+            #         old_cut_ne = g.Q_cbj[1, -2, l] * g.Q_d[1, -2]
+            #         g.Q_cbj[1, -2, l] = (old_cut_ne + ne[l+1]) / nQ_d_ne
             #         # if g.Q_cbj[1, j, l] != 1:
-                    #     print("Q_cbj =", g.Q_cbj[1,j,l])
-                    # print("Q_d[0,j] = ", g.Q_d[0,j])
-                g.Q_d[1, 1] = nQ_d_nw
-            # Update ne corner:
-            if my_mpi_col < (self.p_x_dims-1) and ne[0]:
-                nQ_d_ne = g.Q_d[1, -2] + ne[0]
-                for l in range(self.l_params['nj']):
-                    old_cut_ne = g.Q_cbj[1, -2, l] * g.Q_d[1, -2]
-                    g.Q_cbj[1, -2, l] = (old_cut_ne + ne[l+1]) / nQ_d_ne
-                    # if g.Q_cbj[1, j, l] != 1:
-                    #     print("Q_cbj =", g.Q_cbj[1,j,l])
-                    # print("Q_d[0,j] = ", g.Q_d[0,j])
-                g.Q_d[1, -2] = nQ_d_ne
+            #         #     print("Q_cbj =", g.Q_cbj[1,j,l])
+            #         # print("Q_d[0,j] = ", g.Q_d[0,j])
+            #     g.Q_d[1, -2] = nQ_d_ne
+            #     g.Q_a[1, -2] += ne[0]
 
         if my_mpi_row < (self.p_y_dims - 1):
             # print("rank ", my_rank, " fixing lower")
@@ -535,32 +542,35 @@ class mpi_environment:
                         old_cut_bot = g.Q_cbj[-2, j, l] * g.Q_d[-2, j]
                         g.Q_cbj[-2, j, l] = (old_cut_bot + bot[j, l + 1]) / nQ_d_bot
                     g.Q_d[-2, j] = nQ_d_bot
+                    g.Q_a[-2, j] += bot[j,0]
 
-            # Update sw corner:
-            if my_mpi_col > 0 and sw[0]:
-                nQ_d_sw = g.Q_d[-2, 1] + sw[0]
-                for l in range(self.l_params['nj']):
-                    old_cut_sw = g.Q_cbj[-2, 1, l] * g.Q_d[-2, 1]
-                    g.Q_cbj[-2, 1, l] = (old_cut_sw + sw[l+1]) / nQ_d_sw
-                    # if g.Q_cbj[1, j, l] != 1:
-                    #     print("Q_cbj =", g.Q_cbj[1,j,l])
-                    # print("Q_d[0,j] = ", g.Q_d[0,j])
-                g.Q_d[-2, 1] = nQ_d_sw
-
-            # Update se corner:
-            if my_mpi_col > 0 and se[0]:
-                nQ_d_se = g.Q_d[-2, -2] + se[0]
-                for l in range(self.l_params['nj']):
-                    old_cut_se = g.Q_cbj[-2, -2, l] * g.Q_d[-2, -2]
-                    g.Q_cbj[-2, -2, l] = (old_cut_se + se[l+1]) / nQ_d_se
-                    # if g.Q_cbj[1, j, l] != 1:
-                    #     print("Q_cbj =", g.Q_cbj[1,j,l])
-                    # print("Q_d[0,j] = ", g.Q_d[0,j])
-                g.Q_d[-2, -2] = nQ_d_se
+            # # Update sw corner:
+            # if my_mpi_col > 0 and sw[0]:
+            #     nQ_d_sw = g.Q_d[-2, 1] + sw[0]
+            #     for l in range(self.l_params['nj']):
+            #         old_cut_sw = g.Q_cbj[-2, 1, l] * g.Q_d[-2, 1]
+            #         g.Q_cbj[-2, 1, l] = (old_cut_sw + sw[l+1]) / nQ_d_sw
+            #         # if g.Q_cbj[1, j, l] != 1:
+            #         #     print("Q_cbj =", g.Q_cbj[1,j,l])
+            #         # print("Q_d[0,j] = ", g.Q_d[0,j])
+            #     g.Q_d[-2, 1] = nQ_d_sw
+            #     g.Q_a[-2, 1] += sw[0]
+            #
+            # # Update se corner:
+            # if my_mpi_col > 0 and se[0]:
+            #     nQ_d_se = g.Q_d[-2, -2] + se[0]
+            #     for l in range(self.l_params['nj']):
+            #         old_cut_se = g.Q_cbj[-2, -2, l] * g.Q_d[-2, -2]
+            #         g.Q_cbj[-2, -2, l] = (old_cut_se + se[l+1]) / nQ_d_se
+            #         # if g.Q_cbj[1, j, l] != 1:
+            #         #     print("Q_cbj =", g.Q_cbj[1,j,l])
+            #         # print("Q_d[0,j] = ", g.Q_d[0,j])
+            #     g.Q_d[-2, -2] = nQ_d_se
+            #     g.Q_a[-2, -2] += se[0]
 
         if my_mpi_col > 0:
-            # print("rank ", my_rank, " fixing left")
-            # Update left bounds
+        #     # print("rank ", my_rank, " fixing left")
+        #     # Update left bounds
             left = borders[2]
             for j in range(1, self.p_local_grid_y_dim + 1):
                 if left[j, 0]:
@@ -573,6 +583,7 @@ class mpi_environment:
                         #     print("left[j,:] = ", left[j,:])
                         #     print("Q_cbj =", g.Q_cbj[1,j,l])
                     g.Q_d[j, 1] = nQ_d_left
+                    g.Q_a[j, 1] += left[j,0]
         if my_mpi_col < (self.p_x_dims - 1):
             # print("rank ", self.my_rank, " fixing right", "col  =",
             #       self.my_mpi_col," p_x_dims =",self.p_x_dims )
@@ -586,6 +597,7 @@ class mpi_environment:
                         old_cut_right = g.Q_cbj[j, -2, l] * g.Q_d[j, -2]
                         g.Q_cbj[j, -2, l] = (old_cut_right + right[j, l + 1]) / nQ_d_right
                     g.Q_d[j, -2] = nQ_d_right
+                    g.Q_a[j, -2] += right[j,0]
 
     def get_mpi_nb_flux(self, t, b, l, r):
         """ This function sends and receives 'sediment flux', i.e.\
@@ -785,6 +797,7 @@ class mpi_environment:
             if ((num_iterations + 1) % self.sample_rate == 0) and num_iterations > 0:
                 self.sample(num_iterations)
                 if self.my_rank == 0: self.j_values.append(num_iterations + 1)
+        self.comm.barrier()  # Ensure that no rank tries to load while writing npy files
         if self.plot_bool[1]:
             self.print_figures()
         wtime = timer() - start
@@ -944,6 +957,8 @@ class mpi_environment:
             g.time = self.save_dt
             g.mass = self.mass
             g.plotStabilityCurves(self.j_values)
+        if self.my_rank == 0 and self.plot_bool[5]:
+            self.result_grid.plot_bathy()
 
 
         num_figs = self.ITERATIONS // self.sample_rate
