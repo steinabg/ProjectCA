@@ -751,8 +751,7 @@ class mpi_environment:
         comm = self.comm
         start = timer()
 
-        # Add source
-        self.p_local_hexgrid.addSource()
+        # Adding source before calculating dt has no effect
 
         # Exchange borders
         self.exchange_borders_matrix(self.p_local_hexgrid.Q_th)
@@ -763,13 +762,60 @@ class mpi_environment:
         self.exchange_borders_matrix(self.p_local_hexgrid.Q_a)
         self.exchange_borders_cube(self.p_local_hexgrid.Q_o, 6)
         self.set_local_grid_bc()
+        #
+        # if self.my_rank==3:
+        #     self.p_local_hexgrid.Q_d[:,:] = 10
+        #     self.p_local_hexgrid.Q_cbj[:,:,0] = 1
 
+        # Run toppling rule until convergence, before starting simulation
+        try:
+            if self.l_params['converged_toppling'][0]:
+                tol = self.l_params['converged_toppling'][1]
+                if self.my_rank == 0: print("Running toppling rule until converged with tol = {0}. This may take a while!".format(tol))
+                jj = 0
+                b_value = np.zeros((1),dtype='i')
+                while True:
+                    IMAGE_Qd_old = self.gather_grid(self.p_local_hexgrid.Q_d)
+
+
+                    self.p_local_hexgrid.I_4()
+                    # if my_rank != 0:
+                    #     print("0 my rank = ", my_rank, "\nnonzero Qd=\n", np.where(np.logical_and(p_local_hexgrid.Q_d > 1, np.isfinite(p_local_hexgrid.Q_d))))
+                    self.mpi_toppling_fix()
+                    # if my_rank != 0:
+                    #     print("1 my rank = ", my_rank, "\nnonzero Qd=\n",
+                    #           np.where(np.logical_and(p_local_hexgrid.Q_d > 1, np.isfinite(p_local_hexgrid.Q_d))))
+                    self.exchange_borders_matrix(self.p_local_hexgrid.Q_d)
+                    self.exchange_borders_matrix(self.p_local_hexgrid.Q_a)
+                    self.exchange_borders_cube(self.p_local_hexgrid.Q_cbj, self.l_params['nj'])
+                    self.set_local_grid_bc()
+                    IMAGE_Qd = self.gather_grid(self.p_local_hexgrid.Q_d)
+                    self.comm.barrier()
+
+                    jj += 1
+                    if self.my_rank == 0:
+                        if ma.two_norm(IMAGE_Qd_old, IMAGE_Qd) <= tol:
+                            b_value[0] = 1
+                            print("Convergence achieved after {0} iterations. Continuing simulation.".format(jj))
+                        if jj > 1000:
+                            b_value[0] = 1
+                            print("Convergence could not be achieved after {0} iterations. Continuing simulation.".format(jj))
+                    self.comm.barrier()
+                    self.comm.Bcast(b_value,0)
+                    if b_value:
+                        break
+        except KeyError:
+            print("Toppling rule keyword not found! Skipping toppling before simulation.")
+        # print("rank = {0}, xy = {1}".format(self.my_rank, [self.l_params['x'],self.l_params['y']]))
+        # if self.p_local_hexgrid.Q_th.all() == 0:
+        #     raise Exception("rank {0}".format(self.my_rank))
+
+        self.comm.barrier()
         for num_iterations in range(self.ITERATIONS):
-            # Add source
-            self.p_local_hexgrid.addSource()
 
 
-            self.set_local_grid_bc()
+
+
 
             # Calculate time step and set common dt in all local grids
             p_global_dt = np.zeros((1), dtype=np.double, order='C')
@@ -785,21 +831,42 @@ class mpi_environment:
             self.p_local_hexgrid.dt = p_global_dt  # Set dt
             if self.my_rank == 0:
                 self.save_dt.append(p_global_dt)
+            # Add source
+            self.p_local_hexgrid.addSource()
+            # print("rank", self.my_rank, "before qth[y,x] = ", self.p_local_hexgrid.Q_th.sum())
+            self.set_local_grid_bc()
+            # print("after", self.my_rank, " qth[y,x] = ", self.p_local_hexgrid.Q_th.sum())
+
+            # if self.p_local_hexgrid.Q_th.all() == 0:
+            #     print("rank {0} has zero qth".format(self.my_rank))
 
             # Iterate CA
             # self.print_subgridQ('Qa')
             # self.print_subgridQ('Qth')
+            # if num_iterations == 100 or num_iterations == 150:
+            #     g = self.p_local_hexgrid
+            #     print("rank = {0}, sum = {1}".format(self.my_rank,g.Q_d[1:-1, 1:-1].sum()))
+                # if self.my_rank==0 or self.my_rank==2:
+            #
+            #         np.set_printoptions(suppress=True, linewidth=np.nan, threshold=np.nan)
+            #
+            #         print("rank = {0}, g.Q_d=\n{1}".format(self.my_rank, g.Q_d))
+            #         print("outflux = ", g.t.sum(), " ", g.b.sum())
+            #         print("Q_a[ydim, 5] = ", g.Q_a[self.p_local_grid_y_dim+1,5])
+            #         print("sbdiff[...,3] = ", g.seaBedDiff[self.p_local_grid_y_dim-1,5,3])
+            #         g.I_4(debug=1)
 
             if compare:
                 self.compare_steps(num_iterations, p_global_dt)
             else:
                 self.iterateCA()
+                # pass
             if ((num_iterations + 1) % self.sample_rate == 0) and num_iterations > 0:
                 self.sample(num_iterations)
                 if self.my_rank == 0: self.j_values.append(num_iterations + 1)
         self.comm.barrier()  # Ensure that no rank tries to load while writing npy files
-        if self.plot_bool[1]:
-            self.print_figures()
+        # if self.plot_bool[1]:
+        self.print_figures()
         wtime = timer() - start
         if self.my_rank == 0:
             stime = sum(self.save_dt)
@@ -846,22 +913,22 @@ class mpi_environment:
         self.exchange_borders_cube(self.p_local_hexgrid.Q_cj, self.l_params['nj'])
         self.set_local_grid_bc()
         self.compare_mpi_singlecore(j, self.result_grid.I_2)
-        self.p_local_hexgrid.I_3()
-        self.exchange_borders_matrix(self.p_local_hexgrid.Q_v)
-        self.set_local_grid_bc()
-        self.compare_mpi_singlecore(j, self.result_grid.I_3)
-        self.p_local_hexgrid.I_4()
-        # if my_rank != 0:
-        #     print("0 my rank = ", my_rank, "\nnonzero Qd=\n", np.where(np.logical_and(p_local_hexgrid.Q_d > 1, np.isfinite(p_local_hexgrid.Q_d))))
-        self.mpi_toppling_fix()
-        # if my_rank != 0:
-        #     print("1 my rank = ", my_rank, "\nnonzero Qd=\n",
-        #           np.where(np.logical_and(p_local_hexgrid.Q_d > 1, np.isfinite(p_local_hexgrid.Q_d))))
-        self.exchange_borders_matrix(self.p_local_hexgrid.Q_d)
-        self.exchange_borders_matrix(self.p_local_hexgrid.Q_a)
-        self.exchange_borders_cube(self.p_local_hexgrid.Q_cbj, self.l_params['nj'])
-        self.set_local_grid_bc()
-        self.compare_mpi_singlecore(j, self.result_grid.I_4)
+        # self.p_local_hexgrid.I_3()
+        # self.exchange_borders_matrix(self.p_local_hexgrid.Q_v)
+        # self.set_local_grid_bc()
+        # self.compare_mpi_singlecore(j, self.result_grid.I_3)
+        # self.p_local_hexgrid.I_4()
+        # # if my_rank != 0:
+        # #     print("0 my rank = ", my_rank, "\nnonzero Qd=\n", np.where(np.logical_and(p_local_hexgrid.Q_d > 1, np.isfinite(p_local_hexgrid.Q_d))))
+        # self.mpi_toppling_fix()
+        # # if my_rank != 0:
+        # #     print("1 my rank = ", my_rank, "\nnonzero Qd=\n",
+        # #           np.where(np.logical_and(p_local_hexgrid.Q_d > 1, np.isfinite(p_local_hexgrid.Q_d))))
+        # self.exchange_borders_matrix(self.p_local_hexgrid.Q_d)
+        # self.exchange_borders_matrix(self.p_local_hexgrid.Q_a)
+        # self.exchange_borders_cube(self.p_local_hexgrid.Q_cbj, self.l_params['nj'])
+        # self.set_local_grid_bc()
+        # self.compare_mpi_singlecore(j, self.result_grid.I_4)
 
 
 
@@ -905,6 +972,8 @@ class mpi_environment:
         # print("sample")
         # Gather grids
         IMAGE_Q_th = self.gather_grid(self.p_local_hexgrid.Q_th)
+        # print("rank = {0}, zero local qth = {1}".format(self.my_rank, np.all(self.p_local_hexgrid.Q_th == 0)))
+        # if self.my_rank ==0: print("gathered qth zero? ", np.all(IMAGE_Q_th == 0))
         IMAGE_Q_cbj = self.gather_cube(self.p_local_hexgrid.Q_cbj, self.l_params['nj'])
         IMAGE_Q_cj = self.gather_cube(self.p_local_hexgrid.Q_cj, self.l_params['nj'])
         IMAGE_Q_d = self.gather_grid(self.p_local_hexgrid.Q_d)
@@ -912,36 +981,36 @@ class mpi_environment:
         IMAGE_Q_o = self.gather_cube(self.p_local_hexgrid.Q_o, 6)
 
         if self.my_rank == 0:
-            if self.plot_bool[0]: # 1d plot
-                ch_bot_thickness = [IMAGE_Q_th[bottom_indices[i]] for i in
-                                    range(len(bottom_indices))]
-                ch_bot_speed = [IMAGE_Q_v[bottom_indices[i]] for i in range(len(bottom_indices))]
-                ch_bot_thickness_cons = []
-                ch_bot_sediment_cons = []
-                for jj in range(self.l_params['nj']):
-                    ch_bot_thickness_cons.append(
-                        [IMAGE_Q_cj[bottom_indices[i] + (jj,)] for i in range(len(bottom_indices))])
-                    ch_bot_sediment_cons.append(
-                        [IMAGE_Q_cbj[bottom_indices[i] + (jj,)] for i in range(len(bottom_indices))])
-                ch_bot_sediment = [IMAGE_Q_d[bottom_indices[i]] for i in range(len(bottom_indices))]
-                ch_bot_outflow = [sum(IMAGE_Q_o[bottom_indices[i]]) for i in
-                                  range(len(bottom_indices))]
-
-                np.save(self.save_path_txt + 'ch_bot_outflow_{0}'.format(num_iterations + 1), ch_bot_outflow)
-                np.save(self.save_path_txt + 'ch_bot_speed_{0}'.format(num_iterations + 1), ch_bot_speed)
-                np.save(self.save_path_txt + 'ch_bot_thickness_{0}'.format(num_iterations + 1), ch_bot_thickness)
-                np.save(self.save_path_txt + 'ch_bot_sediment_{0}'.format(num_iterations + 1), ch_bot_sediment)
-                for jj in range(self.l_params['nj']):
-                    np.save(self.save_path_txt + 'ch_bot_sediment_cons{0}_{1}'.format(jj, num_iterations + 1),
-                            ch_bot_sediment_cons[jj])
-                    np.save(self.save_path_txt + 'ch_bot_thickness_cons{0}_{1}'.format(jj, num_iterations + 1),
-                            ch_bot_thickness_cons[jj])
-            if self.plot_bool[1]:  # 2d plot
-                np.save(self.save_path_txt + 'Q_th_{0}'.format(num_iterations + 1), IMAGE_Q_th)
-                np.save(self.save_path_txt + 'Q_cbj_{0}'.format(num_iterations + 1), IMAGE_Q_cbj)
-                np.save(self.save_path_txt + 'Q_cj_{0}'.format(num_iterations + 1), IMAGE_Q_cj)
-                np.save(self.save_path_txt + 'Q_d_{0}'.format(num_iterations + 1), IMAGE_Q_d)
-                np.save(self.save_path_txt + 'Q_v_{0}'.format(num_iterations + 1), IMAGE_Q_v)
+            # if self.plot_bool[0]: # 1d plot
+            #     ch_bot_thickness = [IMAGE_Q_th[bottom_indices[i]] for i in
+            #                         range(len(bottom_indices))]
+            #     ch_bot_speed = [IMAGE_Q_v[bottom_indices[i]] for i in range(len(bottom_indices))]
+            #     ch_bot_thickness_cons = []
+            #     ch_bot_sediment_cons = []
+            #     for jj in range(self.l_params['nj']):
+            #         ch_bot_thickness_cons.append(
+            #             [IMAGE_Q_cj[bottom_indices[i] + (jj,)] for i in range(len(bottom_indices))])
+            #         ch_bot_sediment_cons.append(
+            #             [IMAGE_Q_cbj[bottom_indices[i] + (jj,)] for i in range(len(bottom_indices))])
+            #     ch_bot_sediment = [IMAGE_Q_d[bottom_indices[i]] for i in range(len(bottom_indices))]
+            #     ch_bot_outflow = [sum(IMAGE_Q_o[bottom_indices[i]]) for i in
+            #                       range(len(bottom_indices))]
+            #
+            #     np.save(self.save_path_txt + 'ch_bot_outflow_{0}'.format(num_iterations + 1), ch_bot_outflow)
+            #     np.save(self.save_path_txt + 'ch_bot_speed_{0}'.format(num_iterations + 1), ch_bot_speed)
+            #     np.save(self.save_path_txt + 'ch_bot_thickness_{0}'.format(num_iterations + 1), ch_bot_thickness)
+            #     np.save(self.save_path_txt + 'ch_bot_sediment_{0}'.format(num_iterations + 1), ch_bot_sediment)
+            #     for jj in range(self.l_params['nj']):
+            #         np.save(self.save_path_txt + 'ch_bot_sediment_cons{0}_{1}'.format(jj, num_iterations + 1),
+            #                 ch_bot_sediment_cons[jj])
+            #         np.save(self.save_path_txt + 'ch_bot_thickness_cons{0}_{1}'.format(jj, num_iterations + 1),
+            #                 ch_bot_thickness_cons[jj])
+            # if self.plot_bool[1]:  # 2d plot
+            np.save(self.save_path_txt + 'Q_th_{0}'.format(num_iterations + 1), IMAGE_Q_th)
+            np.save(self.save_path_txt + 'Q_cbj_{0}'.format(num_iterations + 1), IMAGE_Q_cbj)
+            np.save(self.save_path_txt + 'Q_cj_{0}'.format(num_iterations + 1), IMAGE_Q_cj)
+            np.save(self.save_path_txt + 'Q_d_{0}'.format(num_iterations + 1), IMAGE_Q_d)
+            np.save(self.save_path_txt + 'Q_v_{0}'.format(num_iterations + 1), IMAGE_Q_v)
             if self.plot_bool[3]:  # stability curves
                 self.mass.append(IMAGE_Q_th[:, :, None] * IMAGE_Q_cj)
                 self.massBed.append(np.sum(IMAGE_Q_d[1:-1, 1:-1].flatten(), axis=None))
@@ -981,11 +1050,22 @@ class mpi_environment:
             g.Q_cj = IMAGE_Q_cj
             g.Q_d = IMAGE_Q_d
             g.Q_v = IMAGE_Q_v
+            # print("here")
+            # print("in mpi zero Q_th = ", np.all(IMAGE_Q_th == 0))
+            # print("sum Q_d = ", (IMAGE_Q_d).sum())
             if self.plot_bool[1]: g.plot2d(self.i_sample_values[i])
-            if self.plot_bool[0]:
-                ch_bot_outflow, ch_bot_thickness, ch_bot_speed, \
-                ch_bot_sediment, ch_bot_sediment_cons, ch_bot_thickness_cons = r[5:-1]
-                # TODO plot
+            if self.plot_bool[0]: # plot ch_bot
+                print("printing")
+                g.sampleValues()  # Creates ch_bot_ variables using the fresh substates
+                # ch_bot_outflow, ch_bot_thickness, ch_bot_speed, \
+                # ch_bot_sediment, ch_bot_sediment_cons, ch_bot_thickness_cons = r[5:]
+                # g.ch_bot_outflow = ch_bot_outflow
+                # g.ch_bot_thickness = IMAGE_Q_th[g.bot_indices]
+                # g.ch_bot_speed = ch_bot_speed
+                # g.ch_bot_sediment = [g.Q_d[g.bot_indices[i]] for i in range(len(g.bot_indices))]
+                # g.ch_bot_sediment_cons = ch_bot_sediment_cons
+                # g.ch_bot_thickness_cons = ch_bot_thickness_cons
+                g.plot1d(self.i_sample_values[i])
 
 
             # print_substate(self.l_params['ny'], self.l_params['nx'], self.i_sample_values[i],
@@ -1002,7 +1082,7 @@ class mpi_environment:
         IMAGE_Q_d = np.load((save_path_txt+ 'Q_d_{0}.npy'.format(num_iterations + 1)))
         IMAGE_Q_v = np.load((save_path_txt+ 'Q_v_{0}.npy'.format(num_iterations + 1)))
         r = [IMAGE_Q_th, IMAGE_Q_cbj, IMAGE_Q_cj, IMAGE_Q_d, IMAGE_Q_v]
-        if self.plot_bool[3]:
+        if self.plot_bool[0]:
             ch_bot_thickness = np.load((save_path_txt+ 'ch_bot_thickness_{0}.npy'.format(num_iterations + 1)))
             ch_bot_outflow = np.load((save_path_txt+ 'ch_bot_outflow_{0}.npy'.format(num_iterations + 1)))
             ch_bot_speed = np.load((save_path_txt+ 'ch_bot_speed_{0}.npy'.format(num_iterations + 1)))

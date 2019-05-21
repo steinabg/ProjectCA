@@ -159,7 +159,8 @@ def T_2(int Ny,int Nx,int Nj,int[:] rho_j,int rho_a,double[:] D_sj,double nu,dou
                     nQ_cbj_view[ii, jj, kk] = Q_cbj[ii, jj, kk] + dt / ((1 - porosity) * nQ_d_view[ii, jj]) * \
                                          (f_sj[kk] - Q_cbj[ii, jj, kk] * f_sj_sum)
                     # If this operation leads to unphysical state, undo the rule:
-                    if (nQ_cj_view[ii,jj,kk] < 0) or (cisnan(nQ_cj_view[ii,jj,kk])) or nQ_d_view[ii, jj] <= 0:
+                    if (nQ_cj_view[ii,jj,kk] < 0) or nQ_cj_view[ii,jj,kk] > 1 or (cisnan(nQ_cj_view[ii,jj,kk])) or nQ_d_view[ii, jj] <= 0\
+                            or nQ_cbj_view[ii,jj,kk] < 0 or nQ_cbj_view[ii,jj,kk] > 1:
                         num_cells_invalid += 1
                         invalid = 1
                         break
@@ -483,8 +484,11 @@ def I_4(double[:,:] Q_d,int Ny,int Nx,int Nj,double dx,double reposeAngle,double
                         deltaS = Q_d[ii,jj] * frac/num_recv
 
                         for ll in range(Nj):
-                            nQ_cbj_view[nb_ii, nb_jj, ll] = (nQ_d_view[nb_ii, nb_jj] * nQ_cbj_view[nb_ii, nb_jj, ll] +
+                            try:
+                                nQ_cbj_view[nb_ii, nb_jj, ll] = (nQ_d_view[nb_ii, nb_jj] * nQ_cbj_view[nb_ii, nb_jj, ll] +
                                                        nQ_cbj_view[ii,jj, ll] * deltaS) / (nQ_d_view[nb_ii, nb_jj] + deltaS)
+                            except ZeroDivisionError:
+                                raise ZeroDivisionError("Qd = {0}, frac = {1}, num = {2} ".format(Q_d[ii,jj], frac, num_recv))
 
                         nQ_d_view[nb_ii,nb_jj] += deltaS
                         nQ_a_view[nb_ii,nb_jj] += deltaS
@@ -493,7 +497,7 @@ def I_4(double[:,:] Q_d,int Ny,int Nx,int Nj,double dx,double reposeAngle,double
                         nQ_a_view[ii,jj] -= deltaS
 
                         # Mass to be transferred through MPI
-                        if (nb_ii == 0):
+                        if (nb_ii == 0):  # Row = 0
                             top[nb_jj][0] += deltaS
                             for ll in range(Nj):
                                 top[nb_jj][ll+1] += nQ_cbj_view[ii,jj, ll] * deltaS

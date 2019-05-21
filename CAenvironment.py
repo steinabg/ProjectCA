@@ -57,7 +57,7 @@ class CAenvironment:
         self.X = np.zeros((self.Ny, self.Nx, 2))  # X[:,:,0] = X coords, X[:,:,1] = Y coords
         for jj in range(self.Ny):
             self.X[jj, :, 0] = self.x0 + jj * self.dx / 2 + np.arange(self.Nx) * self.dx
-            self.X[jj, :, 1] = self.y0 + np.ones(self.Nx) * self.dx * np.sqrt(3) / 2 * jj
+            self.X[jj, :, 1] = (self.y0 + np.ones(self.Nx) * self.dx * np.sqrt(3) / 2 * jj)
 
         ################# Cell substate buffers ####################
         self.Q_a = np.zeros((self.Ny, self.Nx), order='C', dtype=np.double)  # Cell altitude (bathymetry at t = 0)
@@ -344,6 +344,13 @@ class CAenvironment:
 
     def sanityCheck(self):
         # Round off numerical error
+        if np.any(np.logical_and(self.Q_th <= 0, self.Q_cj[self.Q_th <= 0].any() > 0)):
+            ii,jj = np.where(np.logical_and(self.Q_th <= 0, self.Q_cj[self.Q_th <= 0].any() > 0))
+            s = "Invalid substate combination Q_th == 0 with Q_cj > 0\n"
+            if self.mpi: s = s + ''.join("rank = {0}\n".format(self.my_rank))
+            s = self.create_substate_string(s, [ii,jj])
+            raise Exception(s)
+
         if np.any(np.logical_and(self.Q_d < 1e-15, self.Q_d>0)):
             self.Q_cbj[np.logical_and(self.Q_d < 1e-15, self.Q_d > 0), :] = 0
             self.Q_d[np.logical_and(self.Q_d < 1e-15, self.Q_d>0)] = 0
@@ -359,12 +366,16 @@ class CAenvironment:
             raise Exception('unphysical_substate[Q_v]')
         if (np.any(self.Q_cj > 1)) | (np.any(self.Q_cj < 0)):
             self.unphysical_substate['Q_cj'] = 1
-            raise Exception('unphysical_substate[Q_cj]')
+            ii, jj, kk = np.where(np.logical_or(self.Q_cj > 1, self.Q_cj < 0))
+            s = "unphysical_substate[Q_cj]\n"
+            if self.mpi: s = s + ''.join("rank = {0}\n".format(self.my_rank))
+            s = self.create_substate_string(s, [ii, jj, kk])
+            raise Exception(s)
         if (np.any(self.Q_cbj > 1)) | (np.any(self.Q_cbj < 0)):
             self.unphysical_substate['Q_cbj'] = 1
             ii, jj, kk = np.where(np.logical_or(self.Q_cbj > 1,self.Q_cbj < 0))
             s = "unphysical_substate[Q_cbj]\n"
-            if self.mpi: s = s + ''.join("rank = ".format(self.my_rank))
+            if self.mpi: s = s + ''.join("rank = {0}\n".format(self.my_rank))
             s = self.create_substate_string(s, [ii,jj,kk])
             raise Exception(s)
         if np.any(self.Q_d < 0):
@@ -384,17 +395,25 @@ class CAenvironment:
             information about unphysical substates."""
         ii = index[0]
         jj = index[1]
-        kk = index[2]
-        string = string + ''.join("q_cj[{0},{1},{2}] = {3}\n".format(
-                ii[x], jj[x], kk[x], self.Q_cj[ii[x], jj[x],kk[x]]) for x in range(len(ii)))
-        string = string + ''.join("q_cbj[{0},{1},{2}] = {3}\n".format(
-            ii[x], jj[x], kk[x], self.Q_cbj[ii[x], jj[x], kk[x]]) for x in range(len(ii)))
+        # kk = index[2]
+        l = len(ii) if len(ii) <= 5 else 5
+
+        for x in range(l):
+            for y in range(self.Nj):
+                    string = string + ''.join("q_cj[{0},{1},{2}] = {3} \t".format(
+                            ii[x], jj[x], y, self.Q_cj[ii[x], jj[x],y]))
+        string = string + '\n'
+        for x in range(l):
+            for y in range(self.Nj):
+                string = string + ''.join("q_cbj[{0},{1},{2}] = {3}\t".format(
+                    ii[x], jj[x], y, self.Q_cbj[ii[x], jj[x], y]))
+        string = string + '\n'
         string = string + ''.join("q_th[{0},{1}] = {2}\n".format(
-            ii[x], jj[x], self.Q_th[ii[x], jj[x]]) for x in range(len(ii)))
+            ii[x], jj[x], self.Q_th[ii[x], jj[x]]) for x in range(l))
         string = string + ''.join("q_d[{0},{1}] = {2}\n".format(
-            ii[x], jj[x], self.Q_d[ii[x], jj[x]]) for x in range(len(ii)))
+            ii[x], jj[x], self.Q_d[ii[x], jj[x]]) for x in range(l))
         string = string + ''.join("q_v[{0},{1}] = {2}\n".format(
-            ii[x], jj[x], self.Q_v[ii[x], jj[x]]) for x in range(len(ii)))
+            ii[x], jj[x], self.Q_v[ii[x], jj[x]]) for x in range(l))
 
 
         return string
@@ -421,6 +440,23 @@ class CAenvironment:
                     print("Using slope={0}".format(slope))
                     temp, junk = ma.generate_rupert_inlet_bathymetry(self.reposeAngle, self.dx, self.Ny, self.Nx)
                     temp = ma.gen_sloped_plane(self.Ny, self.Nx, self.dx, -slope, mat=temp.transpose())
+                    return temp
+                elif terrain == 'slope_resistance':
+                    print("Using slope={0}".format(slope))
+                    temp = ma.gen_sloped_plane(self.Ny, self.Nx, self.dx, slope)
+                    middle = [int(temp.shape[x]/2) for x in range(2)]
+                    temp[:middle[0]-int(middle[0]/4), middle[1]-3:middle[1]+3] -= 3
+                    temp[middle[0]-int(middle[0]/4):middle[0]+int(middle[0]/4), middle[1]-1:middle[1]+1] -= 3
+                    temp[middle[0]+int(middle[0]/4):, middle[1]-3:middle[1]+3] -= 3
+                    return temp
+                elif terrain == 'slope_resistance_sand':
+                    print("Using slope={0}".format(slope))
+                    temp = ma.gen_sloped_plane(self.Ny, self.Nx, self.dx, slope)
+                    middle = [int(temp.shape[x] / 2) for x in range(2)]
+                    temp[:middle[0] - int(middle[0] / 4), middle[1] - 3:middle[1] + 3] -= 3
+                    temp[middle[0] - int(middle[0] / 4):middle[0] + int(middle[0] / 4),
+                    middle[1] - 1:middle[1] + 1] -= 3
+                    temp[middle[0] + int(middle[0] / 4):, middle[1] - 3:middle[1] + 3] -= 3
                     return temp
                 elif terrain == 'sloped_plane':
                     print("Using slope={0}".format(slope))
@@ -473,6 +509,7 @@ class CAenvironment:
         seaBedDiff[:, :, 4] = temp[1:-1, 1:-1] - temp[2:self.Ny, 0:self.Nx - 2]
         seaBedDiff[:, :, 5] = temp[1:-1, 1:-1] - temp[1:self.Ny - 1, 0:self.Nx - 2]
         seaBedDiff[np.isnan(seaBedDiff)] = 0
+        # if self.my_rank==0: print("calc sbdiff = ",seaBedDiff[-1,5,3], "Qa = ", temp[-2,4], "Qa_nb = ", temp[-1,4])
         return seaBedDiff
 
     def calc_BFroudeNo(self, g_prime):  # out: Bulk Froude No matrix
@@ -587,9 +624,9 @@ class CAenvironment:
         ax1.set_title('Q_th[1:-1,1:-1]. N = {0}'.format(i+1))
 
         aveQv = np.divide(self.Q_v.sum(1), (self.Q_v!=0).sum(1))
-        ax2.plot(aveQv, self.X[0,:, 0])
+        ax2.plot(aveQv, self.X[:,0, 1])
         ax2.set_xlabel("Average speed")
-        ax2.set_ylim([0, np.max(self.X[0,:,0])])
+        ax2.set_ylim([np.min(self.X[:,0,1]), np.max(self.X[:,0,1])])
 
 
 
@@ -626,10 +663,10 @@ class CAenvironment:
         cbar = fig.add_subplot(gs[-1,:])
         d = (self.Q_d[1:-1, 1:-1] - self.parameters['q_d[interior]'])
         dd = np.abs(self.Q_d[1:-1, 1:-1] - self.parameters['q_d[interior]'])
-        points = ax1.pcolormesh(self.X[1:-1, 1:-1, 0], self.X[1:-1, 1:-1, 1],
+        points = ax1.pcolormesh(self.X[1:-1, 1:-1, 0].transpose(), self.X[1:-1, 1:-1, 1].transpose(),
                                   d.transpose(),
                                   cmap='seismic', vmin=-1., vmax=1.)
-        ax1.contour(self.X[:, :, 0], self.X[:, :, 1],
+        ax1.contour(self.X[:, :, 0].transpose(), self.X[:, :, 1].transpose(),
                       self.bathymetry.transpose(), colors='black', alpha=0.4)
         plt.colorbar(points, shrink=0.8, cax=cbar2, use_gridspec=True)
         ax1.set_title('\Delta Q_d[1:-1,1:-1]. N = {0}'.format(i + 1))
@@ -702,9 +739,9 @@ class CAenvironment:
         plt.close('all')
 
     def plot2d(self, i):
-        self.toppling_out2(i)
-        # self.plot2d_bed(i)
-        # self.plot2d_current(i)
+        # self.toppling_out2(i)
+        self.plot2d_bed(i)
+        self.plot2d_current(i)
         #fig = plt.figure(figsize=(14, 21))
         #ax = [fig.add_subplot(3, 2, i, aspect='equal') for i in range(1, 7)]
         fig, ax = plt.subplots(ncols=2, nrows=3, figsize=(21, 21), sharex=True, sharey=True, subplot_kw={"aspect": "equal"})
@@ -735,12 +772,12 @@ class CAenvironment:
         ax[2].set_title('Q_cbj[1:-1,1:-1,0]')
 
         points = ax[3].pcolormesh(self.X[1:-1, 1:-1, 0], self.X[1:-1, 1:-1, 1],
-                               self.Q_d[1:-1, 1:-1]-self.parameters['q_d[interior]'],
-                                  cmap='seismic', vmin=-1., vmax=1.)
+                               np.log10(self.Q_d[1:-1, 1:-1]-self.parameters['q_d[interior]']),
+                                  )
         ax[3].contour(self.X[:, :, 0], self.X[:, :, 1],
                                self.bathymetry, colors='black', alpha=0.4)
         plt.colorbar(points, shrink=0.6, ax=ax[3])
-        ax[3].set_title('\Delta Q_d[1:-1,1:-1]')
+        ax[3].set_title('$Q_d[1:-1,1:-1]$')
 
         try:
             points = ax[4].pcolormesh(self.X[1:-1, 1:-1, 0], self.X[1:-1, 1:-1, 1],
@@ -761,7 +798,49 @@ class CAenvironment:
                     bbox_inches='tight', pad_inches=0, dpi=240)
         plt.close('all')
 
+    def plot1d_bed(self,i):
+        N = self.Nj  # No sediment types
+
+        gs = gridspec.GridSpec(11 + 1+2*N, 10)
+        fig = plt.figure(figsize=(10, 6))
+        ax1 = fig.add_subplot(gs[:10, :])
+        ax = []
+        for n in range(N):
+            ax.append(fig.add_subplot(gs[11 + 2*n:11 + 2*n + 1, :]))
+            ax[n].tick_params(which="both", axis="both",
+                              labelbottom=False,
+                              labelleft=False)
+        ax1.axhline(0, c='k')
+        ax1.axhline(-1e0, c='r')  # Max erosion
+        ax1.text(0.1, 1e0, "Deposition")
+        ax1.text(0.1, -0.9e0, "Erosion")
+        ax1.set_title(r'$\Delta Q_d$')
+        ax1.set_yscale('symlog', linthreshy=1e-5)
+        ax1.set_ylim(-10, 10)
+        ax1.grid(True, alpha=0.5)
+        ax1.grid(True, which='minor', alpha=0.1)
+        # print("bot_sediment empty? ", np.all(self.ch_bot_sediment[1:-1]==0))
+
+        self.ch_bot_sediment = np.array(self.ch_bot_sediment)
+        d = (self.ch_bot_sediment - self.parameters['q_d[interior]'])
+        # print(d.shape, len(d))
+        ax1.plot(range(len(d)), d)
+        self.ch_bot_sediment_cons = np.array(self.ch_bot_sediment_cons)
+        # print(self.ch_bot_sediment_cons[0,:].shape)
+        # for n in range(N):
+        #     d = (self.ch_bot_sediment_cons[n,:]/self.ch_bot_sediment)
+        #     print("max = ", np.max(d), " min = ", np.min(d))
+        #     plt.colorbar(range(len(d)), d, cax=ax[n], vmin=0., vmax=1.)
+
+        # fig.tight_layout()
+        s1 = str(self.terrain) if self.terrain is None else self.terrain
+        plt.savefig(os.path.join(self.parameters['save_dir'], '1D_BED_%03ix%03i_%s_thetar%0.0f_%03i.png' % (
+            self.Nx, self.Ny, s1, self.parameters['theta_r'], i + 1)),
+                    bbox_inches='tight', pad_inches=0.05, dpi=240)
+        plt.close('all')
+
     def plot1d(self, i):
+        self.plot1d_bed(i)
         # Plot the 1D substates along the bottom of the channel
         fig = plt.figure(figsize=(10, 6))
         ax = [fig.add_subplot(2, 2, i, aspect='auto') for i in range(1, 5)]
@@ -940,24 +1019,51 @@ class CAenvironment:
                 [self.Q_cbj[bottom_indices[i] + (jj,)] for i in range(len(bottom_indices))])
         self.ch_bot_sediment = [self.Q_d[bottom_indices[i]] for i in range(len(bottom_indices))]
         self.ch_bot_outflow = [sum(self.Q_o[self.bot_indices[i]]) for i in range(len(self.bot_indices))]
+        # print(bottom_indices)
 
     def addSource(self):
         q_th0 = self.sourcevalues['Q_th']
         q_v0 = self.sourcevalues['Q_v']
         q_cj0: list = self.sourcevalues['Q_cj']
+        # print("addsource, ", self.my_rank, " qth0=",q_th0, "dt = ", self.dt)
         # grid.Q_v[y, x] += 0.2
         # grid.Q_cj[y, x, 0] += 0.003
         # grid.Q_th[y, x] += 1.5
         if (self.parameters['x'] is not None) and (self.parameters['y'] is not None):
-            if self.parameters['q_th[y,x]'] > 0:
+            if self.parameters['q_th[y,x]'] > 0 and self.dt > 0:
                 # self.Q_v[self.y, self.x] = q_v0 # TODO, test
                 self.Q_v[self.y, self.x] = (self.Q_v[self.y, self.x] * self.Q_th[
                     self.y, self.x] + q_v0 * q_th0 * self.dt) / (q_th0 * self.dt + self.Q_th[self.y, self.x])
-                self.Q_th[self.y, self.x] += q_th0 * self.dt
+                # print("rank, ", self.my_rank, " adding", q_th0*self.dt,"\tqth0=", q_th0, "dt = ", self.dt)
+                # print("in source qth[y,x] = ",self.Q_th[self.y, self.x], " yx = ", [self.y, self.x])
                 for particle_type in range(self.Nj):
                     self.Q_cj[self.y, self.x, particle_type] = (self.Q_cj[self.y, self.x, particle_type] * self.Q_th[
                         self.y, self.x] + q_cj0[particle_type] * q_th0 * self.dt) / (
                                                                        q_th0 * self.dt + self.Q_th[self.y, self.x])
+                self.Q_th[self.y, self.x] += q_th0 * self.dt
+        else:
+            pass
+
+    def addSource_cj(self):
+        q_th0 = self.sourcevalues['Q_th']
+        q_v0 = self.sourcevalues['Q_v']
+        q_cj0: list = self.sourcevalues['Q_cj']
+        # print("addsource, ", self.my_rank, " qth0=",q_th0, "dt = ", self.dt)
+        # grid.Q_v[y, x] += 0.2
+        # grid.Q_cj[y, x, 0] += 0.003
+        # grid.Q_th[y, x] += 1.5
+        if (self.parameters['x'] is not None) and (self.parameters['y'] is not None):
+            if self.parameters['q_th[y,x]'] > 0 and self.dt > 0:
+                # self.Q_v[self.y, self.x] = q_v0 # TODO, test
+                self.Q_v[self.y, self.x] = (self.Q_v[self.y, self.x] * self.Q_th[
+                    self.y, self.x] + q_v0 * q_th0 * self.dt) / (q_th0 * self.dt + self.Q_th[self.y, self.x])
+                # print("rank, ", self.my_rank, " adding", q_th0*self.dt,"\tqth0=", q_th0, "dt = ", self.dt)
+                # print("in source qth[y,x] = ",self.Q_th[self.y, self.x], " yx = ", [self.y, self.x])
+                for particle_type in range(self.Nj):
+                    self.Q_cj[self.y, self.x, particle_type] = (self.Q_cj[self.y, self.x, particle_type] * self.Q_th[
+                        self.y, self.x] + q_cj0[particle_type] * q_th0 * self.dt) / (
+                                                                       q_th0 * self.dt + self.Q_th[self.y, self.x])
+                self.Q_th[self.y, self.x] += q_th0 * self.dt
         else:
             pass
 
