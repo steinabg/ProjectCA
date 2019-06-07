@@ -242,9 +242,13 @@ class CAenvironment:
     def I_3(self):
         self.Q_v, self.Q_v_is_zero_two_timesteps = tra.I_3(self.g, self.Nj, self.Q_cj, self.rho_j, self.rho_a, self.Ny,
                                                            self.Nx, self.Q_a,
-                                                           self.Q_th, self.Q_o, self.f, self.a,
-                                                           self.Q_v)  # Update of turbidity flow velocity
-        self.Q_v = self.Q_v / np.sqrt(self.dt)
+                                                           self.Q_th, self.Q_o_no_time, self.f, self.a,
+                                                           self.Q_v,
+                                                           self.dt,
+                                                           self.dx,
+                                                           method='salles')  # Update of turbidity flow velocity
+
+        # self.Q_v = self.Q_v / np.sqrt(self.dt)
         # if (self.parameters['x'] is not None) and (self.parameters['y'] is not None):
         #     self.Q_v[self.y, self.x] = self.sourcevalues['Q_v']  # TODO, test
         self.sanityCheck()
@@ -351,10 +355,56 @@ class CAenvironment:
             s = self.create_substate_string(s, [ii,jj])
             raise Exception(s)
 
+        self.Q_cbj = np.round(self.Q_cbj,10)
+        # self.Q_cj = np.round(self.Q_cj,10)
+        # self.Q_v = np.round(self.Q_v,10)
+        # self.Q_d = np.round(self.Q_d,10)
+        # self.Q_a = np.round(self.Q_a,10)
+        # self.Q_o = np.round(self.Q_o,10)
+        # self.Q_th = np.round(self.Q_th,10)
+        #
+        # if np.any(self.Q_th>50):
+        #     raise Exception
+
         if np.any(np.logical_and(self.Q_d < 1e-15, self.Q_d>0)):
             self.Q_cbj[np.logical_and(self.Q_d < 1e-15, self.Q_d > 0), :] = 0
             self.Q_d[np.logical_and(self.Q_d < 1e-15, self.Q_d>0)] = 0
 
+        # In case the TC becomes very diluted
+        # if np.any(np.logical_and(self.Q_cj.sum(axis=2) < 1e-5, self.Q_th>100)): # Kill TC
+        # if np.any(np.logical_and(self.Q_cj.sum(axis=2) < 1e-1, self.Q_th>100)): # Kill TC
+        # Qcjsum = self.Q_cj.sum(axis=2)
+        # Qosum = self.Q_o.sum(axis=2)
+        # if np.any(np.logical_and(self.Q_th[1:-1,1:-1]>0, self.Q_cj[1:-1,1:-1].sum(axis=2)==0)):
+        #     raise Exception
+        # self.Q_d, self.Q_a, self.Q_cbj, self.Q_cj, self.Q_th,self.Q_o,self.Q_v =\
+        #     tra.killQth(self.Q_d, self.Q_a, self.Q_cbj, self.Q_cj, self.Q_th,self.Q_o,self.Q_v ,
+        #                 Qcjsum, Qosum, self.Ny, self.Nx, self.Nj)
+            # INDEX = np.where(np.logical_and(self.Q_cj.sum(axis=2) < 1e-5, self.Q_th>1e1))
+            #
+            #
+            # Q_d_old = self.Q_d.copy()
+            # self.Q_a[INDEX] = self.Q_a[INDEX] + self.Q_cj[INDEX,:].sum() * self.Q_th[INDEX]
+            # self.Q_d[INDEX] = self.Q_d[INDEX] + self.Q_cj[INDEX,:].sum() * self.Q_th[INDEX]
+            #
+            # for kk in range(self.Nj):
+            #     self.Q_cbj[INDEX, kk] = (self.Q_cbj[INDEX, kk]*Q_d_old[INDEX] + self.Q_cj[INDEX, kk] * self.Q_th[INDEX]) / self.Q_d[INDEX]
+            # self.Q_cbj = np.round(self.Q_cbj, 10)
+            # # Correct Qcbj
+            # err = self.Q_cbj.sum(axis=2) - 1
+            # if np.any(err > 1e0):
+            #     raise ValueError(np.max(err))  # Raise error for large diffs
+            # else:
+            #     # Try to correct conservation Qcbj
+            #     self.Q_cbj = tra.correctQcbj(self.Ny,self.Nx,self.Nj,self.Q_cbj,err)
+            #
+            #
+            # self.Q_cj[INDEX, :] = 0
+            # self.Q_th[INDEX] = 0
+            # self.Q_v[INDEX] = 0
+            # self.Q_o[INDEX,:] = 0
+        if np.any(np.logical_and(self.Q_th[1:-1,1:-1]>0, self.Q_cj[1:-1,1:-1].sum(axis=2)==0)):
+            raise Exception
         # self.Q_cbj[self.Q_cbj > 0 & self.Q_cbj < (1-1e-16)] = 1
 
         # DEBUGGING: Check for unphysical values
@@ -371,7 +421,7 @@ class CAenvironment:
             if self.mpi: s = s + ''.join("rank = {0}\n".format(self.my_rank))
             s = self.create_substate_string(s, [ii, jj, kk])
             raise Exception(s)
-        if (np.any(self.Q_cbj > 1)) | (np.any(self.Q_cbj < 0)):
+        if (np.any(self.Q_cbj.sum(axis=2)-1e-4 > 1)) | (np.any(self.Q_cbj < 0)):
             self.unphysical_substate['Q_cbj'] = 1
             ii, jj, kk = np.where(np.logical_or(self.Q_cbj > 1,self.Q_cbj < 0))
             s = "unphysical_substate[Q_cbj]\n"
@@ -400,12 +450,12 @@ class CAenvironment:
 
         for x in range(l):
             for y in range(self.Nj):
-                    string = string + ''.join("q_cj[{0},{1},{2}] = {3} \t".format(
+                    string = string + ''.join("q_cj[{0},{1},{2}] = {3: .2E} \t".format(
                             ii[x], jj[x], y, self.Q_cj[ii[x], jj[x],y]))
         string = string + '\n'
         for x in range(l):
             for y in range(self.Nj):
-                string = string + ''.join("q_cbj[{0},{1},{2}] = {3}\t".format(
+                string = string + ''.join("q_cbj[{0},{1},{2}] = {3: .2E}\t".format(
                     ii[x], jj[x], y, self.Q_cbj[ii[x], jj[x], y]))
         string = string + '\n'
         string = string + ''.join("q_th[{0},{1}] = {2}\n".format(
@@ -438,8 +488,18 @@ class CAenvironment:
                     return 10 * temp
                 elif terrain == 'rupert':
                     print("Using slope={0}".format(slope))
-                    temp, junk = ma.generate_rupert_inlet_bathymetry(self.reposeAngle, self.dx, self.Ny, self.Nx)
-                    temp = ma.gen_sloped_plane(self.Ny, self.Nx, self.dx, -slope, mat=temp.transpose())
+                    temp = np.zeros((self.Ny,self.Nx), dtype='double')
+                    limy = int(np.round(self.Ny/3))
+
+                    temp[:self.Ny-limy, :], junk = ma.generate_rupert_inlet_bathymetry(self.reposeAngle, self.dx, self.Ny-limy, self.Nx)
+                    temp = ma.gen_sloped_plane(self.Ny, self.Nx, self.dx, -slope, mat=temp)
+                    return temp
+                elif terrain == 'salles2':
+                    print("Using slope={0}".format(slope))
+                    # temp = np.zeros((self.Ny, self.Nx), dtype='double')
+
+                    temp = ma.generate_salles2_bathymetry(self.dx, Ny=self.Ny, Nx=self.Nx)
+                    temp[:, :] = ma.gen_sloped_plane(self.Ny, self.Nx, self.dx, -slope, mat=temp)
                     return temp
                 elif terrain == 'slope_resistance':
                     print("Using slope={0}".format(slope))
@@ -467,7 +527,7 @@ class CAenvironment:
                     Nx = self.Nx
                     self.x0 = x0 = 452000
                     self.y0 = y0 = 7350000
-                    self.dx = dx = 50
+                    dx = self.dx
                     self.X = np.zeros((Ny, Nx, 2))  # X[:,:,0] = X coords, X[:,:,1] = Y coords
                     for j in range(Ny):
                         self.X[j, :, 0] = x0 + j * dx / 2 + np.arange(Nx) * dx
@@ -533,8 +593,9 @@ class CAenvironment:
     def calc_dt(self, global_grid=True):
         temp = self.calc_MaxRelaxationTime()
         try:
-            # dt = np.min([np.amin(temp[np.isfinite(temp) & (~np.isnan(temp)) & (temp > 0)]), 0.02])  # Better stability
-            dt = np.amin(temp[np.isfinite(temp) & (~np.isnan(temp)) & (temp > 0)])
+            # 1 is safe even if using mpi. If np.all(temp==0) is true it ValueError is still used!
+            # dt = np.min([np.amin(temp[np.isfinite(temp) & (~np.isnan(temp)) & (temp > 0)]), 1])  # 1
+            dt = np.amin(temp[np.isfinite(temp) & (~np.isnan(temp)) & (temp > 0)]) # 2
         except:
             if global_grid is True:
                 dt = 0.01 # TODO, burde kanskje la sim slutte hvis dette skjer
@@ -613,12 +674,14 @@ class CAenvironment:
                 ax.append(fig.add_subplot(gs[10:-2, n*10:(n+1)*10]))
         cbar = fig.add_subplot(gs[-1,:])
         d = (self.Q_th[1:-1, 1:-1]).copy()
-        d[d==0] = np.nan
+        # print("zero Q_th? = ", np.all(self.Q_th == 0))
+        # d[d==0] = np.nan
         points = ax1.pcolormesh(self.X[1:-1, 1:-1, 0], self.X[1:-1, 1:-1, 1],
                                   d,
                                   cmap='Blues', vmin=0)
         ax1.contour(self.X[:, :, 0], self.X[:, :, 1],
                       self.bathymetry, colors='black', alpha=0.4)
+        # print("zero bathy? ", np.all(self.bathymetry==0))
         cbar2.set_title("TC height")
         plt.colorbar(points, shrink=0.8, cax=cbar2, orientation='horizontal')
         ax1.set_title('Q_th[1:-1,1:-1]. N = {0}'.format(i+1))
@@ -665,7 +728,7 @@ class CAenvironment:
         dd = np.abs(self.Q_d[1:-1, 1:-1] - self.parameters['q_d[interior]'])
         points = ax1.pcolormesh(self.X[1:-1, 1:-1, 0].transpose(), self.X[1:-1, 1:-1, 1].transpose(),
                                   d.transpose(),
-                                  cmap='seismic', vmin=-1., vmax=1.)
+                                  cmap='seismic', vmin=-0.5, vmax=0.5)
         ax1.contour(self.X[:, :, 0].transpose(), self.X[:, :, 1].transpose(),
                       self.bathymetry.transpose(), colors='black', alpha=0.4)
         plt.colorbar(points, shrink=0.8, cax=cbar2, use_gridspec=True)
@@ -1060,21 +1123,21 @@ class CAenvironment:
                 # print("rank, ", self.my_rank, " adding", q_th0*self.dt,"\tqth0=", q_th0, "dt = ", self.dt)
                 # print("in source qth[y,x] = ",self.Q_th[self.y, self.x], " yx = ", [self.y, self.x])
                 for particle_type in range(self.Nj):
-                    self.Q_cj[self.y, self.x, particle_type] = (self.Q_cj[self.y, self.x, particle_type] * self.Q_th[
-                        self.y, self.x] + q_cj0[particle_type] * q_th0 * self.dt) / (
-                                                                       q_th0 * self.dt + self.Q_th[self.y, self.x])
+                    self.Q_cj[self.y, self.x, particle_type] += q_cj0[particle_type] * self.dt
                 self.Q_th[self.y, self.x] += q_th0 * self.dt
         else:
             pass
 
     def add_source_constant(self):
         """Note: this may turn into a drain if Q_th[nb] > Q_th0 !"""
+        q_th0 = self.sourcevalues['Q_th']
+        q_v0 = self.sourcevalues['Q_v']
+        q_cj0: list = self.sourcevalues['Q_cj']
         if (self.parameters['x'] is not None) and (self.parameters['y'] is not None):
-            self.Q_v[self.y, self.x] = self.parameters['q_v[y,x]']
-            for i in range(parameters['nj']):
-                s = 'q_cj[y,x,{0}]'.format(i)
-                self.Q_cj[self.y, self.x, i] = self.parameters[s]
-            self.Q_th[self.y, self.x] = self.parameters['q_th[y,x]']
+            self.Q_v[self.y, self.x] = q_v0
+            for particle_type in range(self.Nj):
+                self.Q_cj[self.y, self.x, particle_type] = q_cj0[particle_type]
+            self.Q_th[self.y, self.x] = q_th0
         else:
             pass
         # if((self.Q_th[self.y,self.x] < self.parameters['q_th[y,x]']).sum()):
@@ -1184,16 +1247,15 @@ class CAenvironment:
         if self.mpi:
             d = d + ''.join("rank_{0}_of_{1}/".format(self.my_rank, mpisize))
         ma.ensure_dir(d)
-        d = d + ''.join('%03ix%03i_%s_%03i_thetar%0.0f_'
-                        % (self.Nx, self.Ny, s1, i, self.parameters['theta_r']))
+        d = d + ''.join('%03i_'% (i+1))
 
-        np.save(d + str('self.Q_th'), self.Q_th)
-        np.save(d + str('self.Q_v'),self.Q_v)
-        np.save(d + str('self.Q_cj'),self.Q_cj)
-        np.save(d + str('self.Q_cbj'),self.Q_cbj)
-        np.save(d + str('self.Q_d'),self.Q_d)
-        np.save(d + str('self.Q_o'),self.Q_o)
-        np.save(d + str('self.Q_a'),self.Q_a)
+        np.save(d + str('Q_th'), self.Q_th)
+        np.save(d + str('Q_v'),self.Q_v)
+        np.save(d + str('Q_cj'),self.Q_cj)
+        np.save(d + str('Q_cbj'),self.Q_cbj)
+        np.save(d + str('Q_d'),self.Q_d)
+        np.save(d + str('Q_o'),self.Q_o)
+        np.save(d + str('Q_a'),self.Q_a)
 
     def load_npy(self, i_value):
         pass
@@ -1214,6 +1276,9 @@ class CAenvironment:
         plt.close('all')
         if self.mpi:
             np.save(self.parameters['save_dir']+ '/binaries/bathymetry', self.bathymetry)
+        else:
+            ma.ensure_dir(self.parameters['save_dir']+'npy_files/')
+            np.save(self.parameters['save_dir']+str('npy_files/bathymetry'), self.bathymetry)
 
     def print_log(self, loop: str):
         """ This function prints the variables used to a timestamped file.\

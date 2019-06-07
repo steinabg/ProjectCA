@@ -30,6 +30,46 @@ def compare_ndarray(array1: np.ndarray, array2: np.ndarray, tol):
     else:
         return
 
+
+def generate_salles2_bathymetry(dx, alpha=np.pi / 2, Ny=200, Nx=200, c_p=80, c_amp=3, c_width=7, c_depth=2.75,
+                                endspace=10):
+    # Nx = Ny = 200
+    X = np.zeros((Ny, Nx))
+    dy = np.sqrt(3) / 2 * dx
+    y = np.linspace(0, Ny - 1, num=int(Ny))
+
+    y_offset = np.round(Nx / 13.333)
+
+    if c_amp is None:
+        c_amp = np.round(Nx / 6.667)
+    c_amp = c_amp / dx
+
+    indicesY = np.arange(0, Ny)
+    indicesX = int(np.round(Nx / 2) + y_offset) + np.round(
+        c_amp * np.sin(2 * np.pi / (c_p / dy) * (y - alpha)))
+
+    if c_width is None:
+        c_width = int(np.round(Nx / 6.667))
+    c_width = int(np.round(c_width / dx))  # Convert from meter to cells
+    if c_depth is None:
+        c_depth = np.minimum(int(np.round(Nx / 66.666)), 3)
+
+    x = np.linspace(np.pi, 2 * np.pi, c_width)
+    # Create channel cross section
+    cross_sectionY = c_depth * np.sin(x)
+
+
+    limy = int(np.round(Ny - endspace / dy))
+    for i in range(limy):
+        for j in range(c_width):
+            X[int(indicesY[i]), int(indicesX[i] - c_width + j)] = cross_sectionY[j]
+    lowest = np.min(X)
+    for i in range(limy, Ny):
+        X[int(indicesY[i]), :] = lowest
+
+    return X
+
+
 def generate_rupert_inlet_bathymetry(repose_angle,dx, Ny=200, Nx=200, channel_amplitude=None, channel_width=None, channeldepth=None):
     # Nx = Ny = 200
     X = np.zeros((Nx, Ny))
@@ -68,7 +108,7 @@ def generate_rupert_inlet_bathymetry(repose_angle,dx, Ny=200, Nx=200, channel_am
         warnings.warn("Bathymetry: Channel cross-section steepness {0} exceeds angle of repose {1}! "
                       "This will cause an avalanche.".format(np.max(angle), repose_angle))
 
-    return X, cross_sectionY
+    return X.transpose(), cross_sectionY
 
 def gen_sloped_plane(Ny: int, Nx: int, dx: float, angle: float, mat=None):
     '''

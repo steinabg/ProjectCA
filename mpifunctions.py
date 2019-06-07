@@ -262,31 +262,43 @@ class mpi_environment:
                 self.p_local_hexgrid.Q_d[1:-1,0:2] = self.l_params['q_d[interior]']
                 self.p_local_hexgrid.Q_a[:,0:2] = np.inf
                 self.p_local_hexgrid.Q_a[1:-1,0:2] = self.local_bathy[:,0:2] + self.l_params['q_d[interior]']
-                self.p_local_hexgrid.Q_th[:, 0:2] = 0
-                self.p_local_hexgrid.Q_cj[:, 0:2] = 0
+                if np.any(self.p_local_hexgrid.Q_th[:, 0] > 1e-5):
+                    self.p_local_hexgrid.Q_th[:, 0:3] = 0
+                    self.p_local_hexgrid.Q_cj[:, 0:3,:] = 0
+                    self.p_local_hexgrid.Q_v[:, 0:3] = 0
+                    self.p_local_hexgrid.Q_o[:, 0:3,:] = 0
             if my_mpi_row == 0:
                 self.p_local_hexgrid.Q_d[0:2,:] = np.inf
                 self.p_local_hexgrid.Q_d[0:2,1:-1] = self.l_params['q_d[interior]']
                 self.p_local_hexgrid.Q_a[0:2,:] = np.inf
                 self.p_local_hexgrid.Q_a[0:2,1:-1] = self.local_bathy[0:2, :] + self.l_params['q_d[interior]']
-                self.p_local_hexgrid.Q_th[0:2,:] = 0
-                self.p_local_hexgrid.Q_cj[0:2,:] = 0
+                if np.any( self.p_local_hexgrid.Q_th[0,:] > 1e-5):
+                    self.p_local_hexgrid.Q_th[0:3,:] = 0
+                    self.p_local_hexgrid.Q_cj[0:3,:,:] = 0
+                    self.p_local_hexgrid.Q_v[0:3,:] = 0
+                    self.p_local_hexgrid.Q_o[0:3,:,:] = 0
             if my_mpi_row == (self.p_y_dims-1):
                 # print("mympirow == p_ydims. myrank = ", my_rank)
                 self.p_local_hexgrid.Q_d[-2:,:] = np.inf
                 self.p_local_hexgrid.Q_d[-2:,1:-1] = self.l_params['q_d[interior]']
                 self.p_local_hexgrid.Q_a[-2:,:] = np.inf
                 self.p_local_hexgrid.Q_a[-2:,1:-1] = self.local_bathy[-2:,:] + self.l_params['q_d[interior]']
-                self.p_local_hexgrid.Q_th[-2:,1:-1] = 0
-                self.p_local_hexgrid.Q_cj[-2:,1:-1] = 0
+                if np.any(self.p_local_hexgrid.Q_th[-1,:] > 1e-5):
+                    self.p_local_hexgrid.Q_th[-3:,1:-1] = 0
+                    self.p_local_hexgrid.Q_cj[-3:,1:-1,:] = 0
+                    self.p_local_hexgrid.Q_v[-3:,1:-1] = 0
+                    self.p_local_hexgrid.Q_o[-3:,1:-1,:] = 0
             if my_mpi_col == (self.p_x_dims-1):
                 # print("mympicol == p_xdims. myrank = ", my_rank)
                 self.p_local_hexgrid.Q_d[:,-2:] = np.inf
                 self.p_local_hexgrid.Q_d[1:-1,-2:] = self.l_params['q_d[interior]']
                 self.p_local_hexgrid.Q_a[:,-2:] = np.inf
                 self.p_local_hexgrid.Q_a[1:-1,-2:] = self.local_bathy[:,-2:] + self.l_params['q_d[interior]']
-                self.p_local_hexgrid.Q_th[:,-2:] = 0
-                self.p_local_hexgrid.Q_cj[:,-2:] = 0
+                if np.any(self.p_local_hexgrid.Q_th[:,-1] > 1e-5):
+                    self.p_local_hexgrid.Q_th[:,-3:] = 0
+                    self.p_local_hexgrid.Q_cj[:,-3:,:] = 0
+                    self.p_local_hexgrid.Q_v[:,-3:] = 0
+                    self.p_local_hexgrid.Q_o[:,-3:,:] = 0
         elif type == 'barrier':
             if my_mpi_col == 0:
                 self.p_local_hexgrid.Q_d[:,0] = np.inf
@@ -346,9 +358,9 @@ class mpi_environment:
         self.exchange_borders_matrix(self.p_local_hexgrid.Q_th)
         self.exchange_borders_cube(self.p_local_hexgrid.Q_cj, self.l_params['nj'])
         # Try adding outflow calculation for "new cells"
-        # self.set_local_grid_bc()
-        # self.p_local_hexgrid.I_1()
-        # self.exchange_borders_cube(self.p_local_hexgrid.Q_o, 6)
+        self.set_local_grid_bc()
+        self.p_local_hexgrid.I_1()
+        self.exchange_borders_cube(self.p_local_hexgrid.Q_o, 6)
         self.set_local_grid_bc()
         self.p_local_hexgrid.I_3()
         self.exchange_borders_matrix(self.p_local_hexgrid.Q_v)
@@ -811,6 +823,7 @@ class mpi_environment:
         #     raise Exception("rank {0}".format(self.my_rank))
 
         self.comm.barrier()
+        sourcelim = 10000
         for num_iterations in range(self.ITERATIONS):
 
 
@@ -832,7 +845,8 @@ class mpi_environment:
             if self.my_rank == 0:
                 self.save_dt.append(p_global_dt)
             # Add source
-            self.p_local_hexgrid.addSource()
+            if num_iterations < sourcelim:
+                self.p_local_hexgrid.addSource()
             # print("rank", self.my_rank, "before qth[y,x] = ", self.p_local_hexgrid.Q_th.sum())
             self.set_local_grid_bc()
             # print("after", self.my_rank, " qth[y,x] = ", self.p_local_hexgrid.Q_th.sum())
@@ -869,11 +883,19 @@ class mpi_environment:
         self.print_figures()
         wtime = timer() - start
         if self.my_rank == 0:
+            q_th0 = self.result_grid.sourcevalues['Q_th']
+            q_cj0: list = self.result_grid.sourcevalues['Q_cj']
+            qcjsum = np.sum(q_cj0)
+            discharged = 2650*qcjsum*q_th0*np.sum(self.save_dt[:sourcelim])
+            print("active source = {0:.2f} s".format(np.sum(self.save_dt[:sourcelim]) ))
             stime = sum(self.save_dt)
             self.result_grid.print_log("Wall time used = {0}, simulated time = {1}\n"
-                                       "n_cores = {2}".format(wtime,stime, self.num_procs))
-            print('{0} is complete. Wall time elapsed = {1}\n'
-                  '{2} seconds simulation time.'.format(self.config, wtime, stime))
+                                       "n_cores = {2}\n"
+                                       "{3} kg discharged".format(wtime,stime, self.num_procs,
+                                                                  discharged))
+            print('{0} is complete. Wall time elapsed = {1:.2f}\n'
+                  '{2:.2f} seconds simulation time. {3:.2f} kg discharged'.format(self.config, wtime, stime,
+                                                                          discharged))
 
     def print_subgridQ(self, Q):
         g = self.p_local_hexgrid
@@ -1023,7 +1045,7 @@ class mpi_environment:
         if self.my_rank == 0 and self.plot_bool[3]:  # stability curves:
             g = self.result_grid
             g.density = self.density
-            g.time = self.save_dt
+            g.time = [self.save_dt[x-1] for x in self.j_values]
             g.mass = self.mass
             g.plotStabilityCurves(self.j_values)
         if self.my_rank == 0 and self.plot_bool[5]:
