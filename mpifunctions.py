@@ -519,29 +519,29 @@ class mpi_environment:
                     g.Q_d[1, j] = nQ_d_top
                     g.Q_a[1, j] += top[j,0]
                     # print("nQ_d[0,j] = ", g.Q_d[0, j])
-            # # Update nw corner:
-            # # print("here! ", nw, borders[4])
-            # if my_mpi_col > 0 and nw[0]:
-            #     nQ_d_nw = g.Q_d[1, 1] + nw[0]
-            #     for l in range(self.l_params['nj']):
-            #         old_cut_nw = g.Q_cbj[1, 1, l] * g.Q_d[1, 1]
-            #         g.Q_cbj[1, 1, l] = (old_cut_nw + nw[l+1]) / nQ_d_nw
-            # #         # if g.Q_cbj[1, j, l] != 1:
-            #         #     print("Q_cbj =", g.Q_cbj[1,j,l])
-            #         # print("Q_d[0,j] = ", g.Q_d[0,j])
-            #     g.Q_d[1, 1] = nQ_d_nw
-            #     g.Q_a[1, 1] += nw[0]
-            # # Update ne corner:
-            # if my_mpi_col < (self.p_x_dims-1) and ne[0]:
-            #     nQ_d_ne = g.Q_d[1, -2] + ne[0]
-            #     for l in range(self.l_params['nj']):
-            #         old_cut_ne = g.Q_cbj[1, -2, l] * g.Q_d[1, -2]
-            #         g.Q_cbj[1, -2, l] = (old_cut_ne + ne[l+1]) / nQ_d_ne
+            # Update nw corner:
+            # print("here! ", nw, borders[4])
+            if my_mpi_col > 0 and nw[0]:
+                nQ_d_nw = g.Q_d[1, 1] + nw[0]
+                for l in range(self.l_params['nj']):
+                    old_cut_nw = g.Q_cbj[1, 1, l] * g.Q_d[1, 1]
+                    g.Q_cbj[1, 1, l] = (old_cut_nw + nw[l+1]) / nQ_d_nw
             #         # if g.Q_cbj[1, j, l] != 1:
-            #         #     print("Q_cbj =", g.Q_cbj[1,j,l])
-            #         # print("Q_d[0,j] = ", g.Q_d[0,j])
-            #     g.Q_d[1, -2] = nQ_d_ne
-            #     g.Q_a[1, -2] += ne[0]
+                    #     print("Q_cbj =", g.Q_cbj[1,j,l])
+                    # print("Q_d[0,j] = ", g.Q_d[0,j])
+                g.Q_d[1, 1] = nQ_d_nw
+                g.Q_a[1, 1] += nw[0]
+            # Update ne corner:
+            if my_mpi_col < (self.p_x_dims-1) and ne[0]:
+                nQ_d_ne = g.Q_d[1, -2] + ne[0]
+                for l in range(self.l_params['nj']):
+                    old_cut_ne = g.Q_cbj[1, -2, l] * g.Q_d[1, -2]
+                    g.Q_cbj[1, -2, l] = (old_cut_ne + ne[l+1]) / nQ_d_ne
+                    # if g.Q_cbj[1, j, l] != 1:
+                    #     print("Q_cbj =", g.Q_cbj[1,j,l])
+                    # print("Q_d[0,j] = ", g.Q_d[0,j])
+                g.Q_d[1, -2] = nQ_d_ne
+                g.Q_a[1, -2] += ne[0]
 
         if my_mpi_row < (self.p_y_dims - 1):
             # print("rank ", my_rank, " fixing lower")
@@ -556,29 +556,29 @@ class mpi_environment:
                     g.Q_d[-2, j] = nQ_d_bot
                     g.Q_a[-2, j] += bot[j,0]
 
-            # # Update sw corner:
-            # if my_mpi_col > 0 and sw[0]:
-            #     nQ_d_sw = g.Q_d[-2, 1] + sw[0]
-            #     for l in range(self.l_params['nj']):
-            #         old_cut_sw = g.Q_cbj[-2, 1, l] * g.Q_d[-2, 1]
-            #         g.Q_cbj[-2, 1, l] = (old_cut_sw + sw[l+1]) / nQ_d_sw
-            #         # if g.Q_cbj[1, j, l] != 1:
-            #         #     print("Q_cbj =", g.Q_cbj[1,j,l])
-            #         # print("Q_d[0,j] = ", g.Q_d[0,j])
-            #     g.Q_d[-2, 1] = nQ_d_sw
-            #     g.Q_a[-2, 1] += sw[0]
-            #
-            # # Update se corner:
-            # if my_mpi_col > 0 and se[0]:
-            #     nQ_d_se = g.Q_d[-2, -2] + se[0]
-            #     for l in range(self.l_params['nj']):
-            #         old_cut_se = g.Q_cbj[-2, -2, l] * g.Q_d[-2, -2]
-            #         g.Q_cbj[-2, -2, l] = (old_cut_se + se[l+1]) / nQ_d_se
-            #         # if g.Q_cbj[1, j, l] != 1:
-            #         #     print("Q_cbj =", g.Q_cbj[1,j,l])
-            #         # print("Q_d[0,j] = ", g.Q_d[0,j])
-            #     g.Q_d[-2, -2] = nQ_d_se
-            #     g.Q_a[-2, -2] += se[0]
+            # Update sw corner:
+            if my_mpi_col > 0 and sw[0]:
+                nQ_d_sw = g.Q_d[-2, 1] + sw[0]
+                for l in range(self.l_params['nj']):
+                    old_cut_sw = g.Q_cbj[-2, 1, l] * g.Q_d[-2, 1]
+                    g.Q_cbj[-2, 1, l] = (old_cut_sw + sw[l+1]) / nQ_d_sw
+                    # if g.Q_cbj[1, j, l] != 1:
+                    #     print("Q_cbj =", g.Q_cbj[1,j,l])
+                    # print("Q_d[0,j] = ", g.Q_d[0,j])
+                g.Q_d[-2, 1] = nQ_d_sw
+                g.Q_a[-2, 1] += sw[0]
+
+            # Update se corner:
+            if my_mpi_col > 0 and se[0]:
+                nQ_d_se = g.Q_d[-2, -2] + se[0]
+                for l in range(self.l_params['nj']):
+                    old_cut_se = g.Q_cbj[-2, -2, l] * g.Q_d[-2, -2]
+                    g.Q_cbj[-2, -2, l] = (old_cut_se + se[l+1]) / nQ_d_se
+                    # if g.Q_cbj[1, j, l] != 1:
+                    #     print("Q_cbj =", g.Q_cbj[1,j,l])
+                    # print("Q_d[0,j] = ", g.Q_d[0,j])
+                g.Q_d[-2, -2] = nQ_d_se
+                g.Q_a[-2, -2] += se[0]
 
         if my_mpi_col > 0:
         #     # print("rank ", my_rank, " fixing left")
@@ -1046,6 +1046,7 @@ class mpi_environment:
             g = self.result_grid
             g.density = self.density
             g.time = [self.save_dt[x-1] for x in self.j_values]
+            np.save(self.save_path_txt+'timesteps', self.save_dt)
             g.mass = self.mass
             g.plotStabilityCurves(self.j_values)
         if self.my_rank == 0 and self.plot_bool[5]:
@@ -1159,15 +1160,17 @@ def define_px_py_dims(num_procs, ny, nx):
     if ma.is_square(num_procs): # If square number
         p_y_dims = np.sqrt(num_procs)
         p_x_dims = np.sqrt(num_procs)
-    elif num_procs % 2 == 0:
-        if ny >= nx:
-            p_x_dims = 2
-            p_y_dims = num_procs/2.0
-        else:
-            p_x_dims = num_procs / 2.0
-            p_y_dims = 2
+    # elif num_procs % 2 == 0:
     else:
-        raise Exception("Please use an even or square number of processors!")
+        factors = ma.largest_factor(num_procs) # factors[0]>factors[1]
+        if ny >= nx:
+            p_x_dims = factors[1]
+            p_y_dims = factors[0]
+        else:
+            p_x_dims = factors[0]
+            p_y_dims = factors[1]
+    # else:
+    #     raise Exception("Please use an even or square number of processors!")
     return int(p_y_dims), int(p_x_dims)
 
 def define_local_hexgrid_size(IMG_dim, p_xy_dim, my_dim_coord):

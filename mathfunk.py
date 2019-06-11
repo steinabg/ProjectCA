@@ -2,6 +2,7 @@ import numpy as np
 import warnings
 import os
 from sys import stdout
+from functools import reduce
 
 def ensure_file(file_path):
     if not os.path.exists(file_path):
@@ -248,6 +249,30 @@ def is_square(apositiveint):
         if x in seen: return False
         seen.add(x)
     return True
+
+def factors(n):
+    '''Returns a list of factors, that when multiplied gives n.'''
+    s = set(reduce(list.__add__,
+                   ([i, n // i] for i in range(1, int(n ** 0.5) + 1) if n % i == 0)))
+    l = []
+    for f in s:
+        l.append(tuple([f, int(n / f)]))
+
+    return l
+
+
+def largest_factor(n):
+    '''Finds the two factors closest to the sqrt(n) that when multiplied gives n.'''
+    f = factors(n)
+    s = np.sqrt(n)
+    final = tuple([int(n/2),2])
+    for t in f:
+        if t[0] >= s and t[1] <= s and t[0] < final[0] and t[1] > final[1]:
+            final = tuple([int(t[0]),int(t[1])])
+    if final[0] < final[1]:
+        final = tuple([final[1],final[0]])
+    return final
+
 
 def dump(obj, nested_level=0, output=stdout):
     """ This function creates a formatted output for a dict."""
