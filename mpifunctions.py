@@ -821,7 +821,8 @@ class mpi_environment:
         # print("rank = {0}, xy = {1}".format(self.my_rank, [self.l_params['x'],self.l_params['y']]))
         # if self.p_local_hexgrid.Q_th.all() == 0:
         #     raise Exception("rank {0}".format(self.my_rank))
-
+        if not compare:
+            del self.result_grid # Free memory during simulation
         self.comm.barrier()
         sourcelim = 10000
         for num_iterations in range(self.ITERATIONS):
@@ -880,6 +881,8 @@ class mpi_environment:
                 if self.my_rank == 0: self.j_values.append(num_iterations + 1)
         self.comm.barrier()  # Ensure that no rank tries to load while writing npy files
         # if self.plot_bool[1]:
+        del self.p_local_hexgrid
+        self.result_grid = CAenv.CAenvironment(self.g_params, mpi=True)
         self.print_figures()
         wtime = timer() - start
         if self.my_rank == 0:
