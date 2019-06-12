@@ -625,7 +625,10 @@ class mpi_environment:
         bot = np.zeros((p_local_grid_x_dim + 2, nj+1), dtype=np.double, order='C')
         left = np.zeros((p_local_grid_y_dim + 2, nj+1), dtype=np.double, order='C')
         right = np.zeros((p_local_grid_y_dim + 2, nj+1), dtype=np.double, order='C')
-        nw = ne = se = sw = np.zeros((nj+1), dtype=np.double)  # Corner receive buffers
+        nw = np.zeros((nj+1), dtype=np.double)  # Corner receive buffers
+        ne = np.zeros((nj+1), dtype=np.double)  # Corner receive buffers
+        se = np.zeros((nj+1), dtype=np.double)  # Corner receive buffers
+        sw = np.zeros((nj+1), dtype=np.double)  # Corner receive buffers
 
         # Send up, recv from down
         comm.Sendrecv(
