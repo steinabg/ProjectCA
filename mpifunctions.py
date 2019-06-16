@@ -893,7 +893,7 @@ class mpi_environment:
             q_th0 = self.result_grid.sourcevalues['Q_th']
             q_cj0: list = self.result_grid.sourcevalues['Q_cj']
             qcjsum = np.sum(q_cj0)
-            discharged = 2650*qcjsum*q_th0*np.sum(self.save_dt[:sourcelim])
+            discharged = 2650*qcjsum*q_th0*np.sqrt(3)/2*self.l_params['dx']**2*np.sum(self.save_dt[:sourcelim])
             print("active source = {0:.2f} s".format(np.sum(self.save_dt[:sourcelim]) ))
             stime = sum(self.save_dt)
             self.result_grid.print_log("Wall time used = {0}, simulated time = {1}\n"
