@@ -258,20 +258,20 @@ class mpi_environment:
         if type == 'absorb':
 
             if my_mpi_col == 0:
-                self.p_local_hexgrid.Q_d[:,0:2] = np.inf
-                self.p_local_hexgrid.Q_d[1:-1,0:2] = self.l_params['q_d[interior]']
-                self.p_local_hexgrid.Q_a[:,0:2] = np.inf
-                self.p_local_hexgrid.Q_a[1:-1,0:2] = self.local_bathy[:,0:2] + self.l_params['q_d[interior]']
+                self.p_local_hexgrid.Q_d[:,0:2] = 0
+                # self.p_local_hexgrid.Q_d[1:-1,0:2] = self.l_params['q_d[interior]']
+                self.p_local_hexgrid.Q_a[:,0:2] = -1e4
+                # self.p_local_hexgrid.Q_a[1:-1,0:2] = self.local_bathy[:,0:2] + self.l_params['q_d[interior]']
                 if np.any(self.p_local_hexgrid.Q_th[:, 0] > 1e-5):
                     self.p_local_hexgrid.Q_th[:, 0:3] = 0
                     self.p_local_hexgrid.Q_cj[:, 0:3,:] = 0
                     self.p_local_hexgrid.Q_v[:, 0:3] = 0
                     self.p_local_hexgrid.Q_o[:, 0:3,:] = 0
             if my_mpi_row == 0:
-                self.p_local_hexgrid.Q_d[0:2,:] = np.inf
-                self.p_local_hexgrid.Q_d[0:2,1:-1] = self.l_params['q_d[interior]']
-                self.p_local_hexgrid.Q_a[0:2,:] = np.inf
-                self.p_local_hexgrid.Q_a[0:2,1:-1] = self.local_bathy[0:2, :] + self.l_params['q_d[interior]']
+                self.p_local_hexgrid.Q_d[0:2,:] = 0
+                # self.p_local_hexgrid.Q_d[0:2,1:-1] = self.l_params['q_d[interior]']
+                self.p_local_hexgrid.Q_a[0:2,:] = -1e4
+                # self.p_local_hexgrid.Q_a[0:2,1:-1] = self.local_bathy[0:2, :] + self.l_params['q_d[interior]']
                 if np.any( self.p_local_hexgrid.Q_th[0,:] > 1e-5):
                     self.p_local_hexgrid.Q_th[0:3,:] = 0
                     self.p_local_hexgrid.Q_cj[0:3,:,:] = 0
@@ -279,10 +279,10 @@ class mpi_environment:
                     self.p_local_hexgrid.Q_o[0:3,:,:] = 0
             if my_mpi_row == (self.p_y_dims-1):
                 # print("mympirow == p_ydims. myrank = ", my_rank)
-                self.p_local_hexgrid.Q_d[-2:,:] = np.inf
-                self.p_local_hexgrid.Q_d[-2:,1:-1] = self.l_params['q_d[interior]']
-                self.p_local_hexgrid.Q_a[-2:,:] = np.inf
-                self.p_local_hexgrid.Q_a[-2:,1:-1] = self.local_bathy[-2:,:] + self.l_params['q_d[interior]']
+                self.p_local_hexgrid.Q_d[-2:,:] = 0
+                # self.p_local_hexgrid.Q_d[-2:,1:-1] = self.l_params['q_d[interior]']
+                self.p_local_hexgrid.Q_a[-2:,:] = -1e4
+                # self.p_local_hexgrid.Q_a[-2:,1:-1] = self.local_bathy[-2:,:] + self.l_params['q_d[interior]']
                 if np.any(self.p_local_hexgrid.Q_th[-1,:] > 1e-5):
                     self.p_local_hexgrid.Q_th[-3:,1:-1] = 0
                     self.p_local_hexgrid.Q_cj[-3:,1:-1,:] = 0
@@ -290,10 +290,10 @@ class mpi_environment:
                     self.p_local_hexgrid.Q_o[-3:,1:-1,:] = 0
             if my_mpi_col == (self.p_x_dims-1):
                 # print("mympicol == p_xdims. myrank = ", my_rank)
-                self.p_local_hexgrid.Q_d[:,-2:] = np.inf
-                self.p_local_hexgrid.Q_d[1:-1,-2:] = self.l_params['q_d[interior]']
-                self.p_local_hexgrid.Q_a[:,-2:] = np.inf
-                self.p_local_hexgrid.Q_a[1:-1,-2:] = self.local_bathy[:,-2:] + self.l_params['q_d[interior]']
+                self.p_local_hexgrid.Q_d[:,-2:] = 0
+                # self.p_local_hexgrid.Q_d[1:-1,-2:] = self.l_params['q_d[interior]']
+                self.p_local_hexgrid.Q_a[:,-2:] = -1e4
+                # self.p_local_hexgrid.Q_a[1:-1,-2:] = self.local_bathy[:,-2:] + self.l_params['q_d[interior]']
                 if np.any(self.p_local_hexgrid.Q_th[:,-1] > 1e-5):
                     self.p_local_hexgrid.Q_th[:,-3:] = 0
                     self.p_local_hexgrid.Q_cj[:,-3:,:] = 0
